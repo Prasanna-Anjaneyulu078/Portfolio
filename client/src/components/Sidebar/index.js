@@ -20,7 +20,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, onTabChange, avatarUrl }) => {
     avatarUrl: '',
   })
 
-  const API_URL = 'http://localhost:3002/api/user'
+  const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api/user'
 
   useEffect(() => {
     const fetchData = async () => {
