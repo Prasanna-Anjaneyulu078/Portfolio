@@ -148,7 +148,7 @@ const ProjectsSection = () => {
         </div>
         <button className="btn-add-project" onClick={openAddModal}>
           <span className="material-symbols-outlined">add_box</span>
-          Construct New Project
+          Add New Project
         </button>
       </div>
 
