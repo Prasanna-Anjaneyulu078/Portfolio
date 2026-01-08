@@ -3,7 +3,7 @@ import axios from 'axios';
 import Modal from '../Modal';
 import './index.css';
 
-const API_URL = 'http://localhost:3002/api';
+const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api';
 
 const AboutMe = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
