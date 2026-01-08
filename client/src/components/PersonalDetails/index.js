@@ -4,7 +4,7 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const API_URL = 'http://localhost:3002/api/user'
+const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api/user'
 
 const PersonalDetails = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
