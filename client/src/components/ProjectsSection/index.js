@@ -4,7 +4,7 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const API_URL = 'http://localhost:3002/api';
+const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api';
 
 const ProjectsSection = () => {
   const [projects, setProjects] = useState([]);
