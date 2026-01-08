@@ -3,7 +3,7 @@ import axios from 'axios';
 import Modal from '../Modal';
 import './index.css';
 
-const API_BASE = 'http://localhost:3002/api';
+const API_BASE = 'https://prasanna-portfolio-admin.vercel.app/api;
 
 const SkillsSection = () => {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
