@@ -1,0 +1,322 @@
+
+.skills-main-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.skill-groups-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+.skill-group-card {
+  background-color: var(--slate-50);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--slate-100);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.skill-group-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  background-color: white;
+  border-color: var(--primary);
+}
+
+.skill-group-header {
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--slate-100);
+  padding-bottom: 0.5rem;
+}
+
+.group-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.skills-group-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin: 0;
+}
+
+.btn-icon-small {
+  color: var(--slate-400);
+  padding: 0.25rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-small span { font-size: 1.125rem; }
+
+.btn-icon-small:hover {
+  background-color: var(--slate-100);
+  color: var(--primary);
+}
+
+.btn-icon-danger:hover {
+  background-color: #fef2f2;
+  color: #ef4444;
+}
+
+.skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skill-tag {
+  background-color: white;
+  color: var(--slate-700);
+  padding: 0.375rem 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--slate-200);
+  transition: all 0.2s;
+}
+
+.empty-text {
+  font-size: 0.75rem;
+  color: var(--slate-400);
+  font-style: italic;
+}
+
+.profiles-sidebar {
+  border-top: 2px dashed var(--slate-100);
+  padding-top: 2rem;
+}
+
+.profile-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.btn-tiny-link {
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(19, 91, 236, 0.05);
+}
+
+.btn-tiny-link:hover {
+  background: rgba(19, 91, 236, 0.1);
+  text-decoration: none;
+}
+
+.profile-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--slate-100);
+  background-color: var(--bg-white);
+  transition: all 0.2s;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-card:hover {
+  border-color: var(--primary);
+  transform: translateX(4px);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-info-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-icon {
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--slate-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--slate-100);
+}
+
+.profile-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--slate-900);
+}
+
+.profile-arrow {
+  color: var(--slate-300);
+  font-size: 1.25rem !important;
+}
+
+/* Platform Colors */
+.profile-symbol-leetcode-orange { color: #f97316; font-size: 1.5rem !important; }
+.profile-symbol-hackerrank-green { color: #16a34a; font-size: 1.5rem !important; }
+.profile-symbol-gfg-green { color: #2f8d46; font-size: 1.5rem !important; }
+.profile-symbol-code360-orange { color: #f37021; font-size: 1.5rem !important; }
+.profile-symbol-slate-800 { color: var(--slate-800); font-size: 1.5rem !important; }
+
+/* Modal Management UI REFRESHED */
+.profile-manager-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.form-subtitle {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-subtitle::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--slate-100);
+}
+
+.current-profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.profile-edit-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 0.875rem;
+  border: 1px solid var(--border-color);
+  transition: border-color 0.2s;
+}
+
+.profile-edit-item:focus-within {
+  border-color: var(--primary);
+}
+
+.profile-edit-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 9rem;
+  flex-shrink: 0;
+}
+
+.profile-edit-info span { 
+  color: var(--slate-400); 
+  font-size: 1.5rem !important; 
+}
+
+.profile-edit-info p { 
+  font-size: 0.875rem; 
+  font-weight: 800; 
+  color: var(--slate-800); 
+}
+
+.form-input-compact {
+  flex: 1;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--slate-100);
+  border-radius: 0.625rem;
+  font-size: 0.875rem;
+  background: var(--slate-50);
+}
+
+.btn-remove-profile {
+  color: var(--slate-300);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn-remove-profile:hover { 
+  color: #ef4444; 
+  background: #fff1f2;
+}
+
+.add-new-profile-section {
+  padding: 1.5rem;
+  background: var(--slate-50);
+  border-radius: 1rem;
+  border: 1px solid var(--slate-100);
+}
+
+.add-profile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.btn-add-profile-now {
+  margin-top: 0.5rem;
+  background: var(--slate-900);
+  color: white;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.btn-add-profile-now:hover { 
+  background: var(--primary); 
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(19, 91, 236, 0.2);
+}
+
+@media (min-width: 640px) {
+  .skill-groups-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .skills-main-layout { flex-direction: row; align-items: flex-start; }
+  .skill-groups-grid { flex: 1; }
+  .profiles-sidebar {
+    width: 22rem;
+    border-top: none;
+    border-left: 2px dashed var(--slate-100);
+    padding-top: 0;
+    padding-left: 2rem;
+  }
+}

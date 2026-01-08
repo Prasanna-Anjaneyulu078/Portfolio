@@ -1,0 +1,45 @@
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  scroll-behavior: smooth;
+}
+
+.content-wrapper {
+  max-width: 80rem; /* Increased from 64rem to 80rem (1280px) for better table visibility */
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding-bottom: 3rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .scroll-container { padding: 1.5rem; }
+}
+
+@media (min-width: 768px) {
+  .scroll-container { padding: 2rem; }
+}
+
+@media (min-width: 1024px) {
+  .scroll-container { padding: 2.5rem; }
+}
