@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './index.css';
 
-const API_BASE = 'http://localhost:3002/api';
+const API_BASE = 'https://prasanna-portfolio-admin.vercel.app/api';
 
 const Dashboard = ({ onNavigate }) => {
   const [data, setData] = useState({
