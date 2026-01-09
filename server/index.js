@@ -241,40 +241,30 @@ app.delete('/api/resumes/:id', async (req, res) => {
     }
 });
 
-// LATEST UPDATED RESUME DOWNLOAD API
+// Resume download 
 app.get('/api/resume/download', async (req, res) => {
   try {
-    // Priority 1: Look for an active resume. 
-    // Priority 2: If none active, get the most recent upload.
-    let activeResume = await Resume.findOne({ isActive: true });
-    
-    if (!activeResume) {
-      activeResume = await Resume.findOne().sort({ uploadedAt: -1 });
-    }
+    const activeResume = await Resume.findOne({ isActive: true }) || await Resume.findOne().sort({ uploadedAt: -1 });
 
     if (!activeResume || !activeResume.fileData) {
-      return res.status(404).json({ message: "Resume file data not found" });
+      // Very important: If this fails, the frontend will catch it in the 'catch' block
+      return res.status(404).send("No resume found"); 
     }
 
-    // Fetch user for name; default to "User" if profile not set
-    const user = await personalDetailsModel.findOne();
-    const displayName = user?.name ? user.name.replace(/\s+/g, '_') : 'My';
-    const fileName = `${displayName}_Resume.pdf`;
+    // CLEANING LOGIC: Remove prefix if it exists, otherwise keep as is
+    let base64String = activeResume.fileData;
+    if (base64String.includes(',')) {
+      base64String = base64String.split(',')[1];
+    }
 
-    // Strip Base64 prefix if it exists
-    const base64Data = activeResume.fileData.replace(/^data:application\/pdf;base64,/, "");
-    
-    // Create Buffer
-    const pdfBuffer = Buffer.from(base64Data, 'base64');
+    const pdfBuffer = Buffer.from(base64String, 'base64');
 
-    // Headers
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Content-Disposition', 'attachment; filename=Resume.pdf');
     res.setHeader('Content-Length', pdfBuffer.length);
     
-    res.send(pdfBuffer);
+    return res.end(pdfBuffer); // Use .end() for binary data buffers
   } catch (err) {
-    console.error("Critical Download Error:", err);
-    res.status(500).json({ message: "Internal Server Error", error: err.message });
+    res.status(500).send("Server Error");
   }
 });
