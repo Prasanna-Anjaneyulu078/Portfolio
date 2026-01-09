@@ -242,29 +242,65 @@ app.delete('/api/resumes/:id', async (req, res) => {
 });
 
 // Resume download 
+// app.get('/api/resume/download', async (req, res) => {
+//   try {
+//     const activeResume = await Resume.findOne({ isActive: true }) || await Resume.findOne().sort({ uploadedAt: -1 });
+
+//     if (!activeResume || !activeResume.fileData) {
+//       // Very important: If this fails, the frontend will catch it in the 'catch' block
+//       return res.status(404).send("No resume found"); 
+//     }
+
+//     // CLEANING LOGIC: Remove prefix if it exists, otherwise keep as is
+//     let base64String = activeResume.fileData;
+//     if (base64String.includes(',')) {
+//       base64String = base64String.split(',')[1];
+//     }
+
+//     const pdfBuffer = Buffer.from(base64String, 'base64');
+
+//     res.setHeader('Content-Type', 'application/pdf');
+//     res.setHeader('Content-Disposition', 'attachment; filename=Resume.pdf');
+//     res.setHeader('Content-Length', pdfBuffer.length);
+    
+//     return res.end(pdfBuffer); // Use .end() for binary data buffers
+//   } catch (err) {
+//     res.status(500).send("Server Error");
+//   }
+// });
+
 app.get('/api/resume/download', async (req, res) => {
   try {
-    const activeResume = await Resume.findOne({ isActive: true }) || await Resume.findOne().sort({ uploadedAt: -1 });
+    // 1. Get the resume (Active one first, otherwise the latest one)
+    let activeResume = await Resume.findOne({ isActive: true });
+    if (!activeResume) {
+      activeResume = await Resume.findOne().sort({ uploadedAt: -1 });
+    }
 
+    // 2. If absolutely no resume exists, return 404
     if (!activeResume || !activeResume.fileData) {
-      // Very important: If this fails, the frontend will catch it in the 'catch' block
-      return res.status(404).send("No resume found"); 
+      return res.status(404).json({ message: "No resume found" });
     }
 
-    // CLEANING LOGIC: Remove prefix if it exists, otherwise keep as is
-    let base64String = activeResume.fileData;
-    if (base64String.includes(',')) {
-      base64String = base64String.split(',')[1];
-    }
+    // 3. Clean the Base64 String (Removes 'data:application/pdf;base64,' if present)
+    const rawData = activeResume.fileData;
+    const base64Data = rawData.includes(',') ? rawData.split(',')[1] : rawData;
 
-    const pdfBuffer = Buffer.from(base64String, 'base64');
+    // 4. Convert to Buffer
+    const pdfBuffer = Buffer.from(base64Data, 'base64');
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=Resume.pdf');
-    res.setHeader('Content-Length', pdfBuffer.length);
-    
-    return res.end(pdfBuffer); // Use .end() for binary data buffers
+    // 5. Set explicit headers
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename=Resume.pdf',
+      'Content-Length': pdfBuffer.length,
+    });
+
+    // 6. Send the raw buffer
+    return res.status(200).send(pdfBuffer);
+
   } catch (err) {
-    res.status(500).send("Server Error");
+    console.error("Download error:", err);
+    return res.status(500).json({ message: "Server error during download" });
   }
 });
