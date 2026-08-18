@@ -4,7 +4,7 @@ import Modal from '../Modal';
 import { fileToBase64, getPdfUrl } from '../../utils/fileHelpers';
 import './index.css';
 
-const API_BASE = 'https://prasanna-portfolio-admin.vercel.app/api/resumes';
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/resumes`;
 
 const ResumeSection = () => {
   const [resumes, setResumes] = useState([]);
@@ -75,7 +75,9 @@ const ResumeSection = () => {
       setIsModalOpen(false);
       fetchResumes();
     } catch (err) {
-      setErrors({ upload: "Upload failed. Please try again." });
+      const msg = err.response?.data?.message || err.message || "Upload failed. Please try again.";
+      setErrors({ upload: msg });
+      alert(msg);
     }
   };
 

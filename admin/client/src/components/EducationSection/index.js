@@ -3,28 +3,24 @@ import axios from 'axios';
 import Modal from '../Modal';
 import './index.css';
 
-const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
 
-const AboutMe = () => {
+const EducationSection = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  
-  const [formData, setFormData] = useState({
-    coreObjective: '',
-    academic: []
-  });
 
-  // 1. Fetch data from MongoDB
-  const fetchProfileData = async () => {
+  const [academic, setAcademic] = useState([]);
+
+  // Fetch education data
+  const fetchEducationData = async () => {
     try {
       setIsLoading(true);
       const response = await axios.get(`${API_URL}/education`);
-      if (response.data) {
-        setFormData({
-          coreObjective: response.data.coreObjective || '',
-          academic: response.data.academic || []
-        });
+      if (response.data && Array.isArray(response.data.academic)) {
+        setAcademic(response.data.academic);
+      } else {
+        setAcademic([]);
       }
     } catch (err) {
       console.error("Fetch Error:", err.message);
@@ -34,16 +30,12 @@ const AboutMe = () => {
   };
 
   useEffect(() => {
-    fetchProfileData();
+    fetchEducationData();
   }, []);
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.coreObjective.trim()) {
-      newErrors.coreObjective = "Core Objective is required";
-    }
-    
-    formData.academic.forEach((item, index) => {
+    academic.forEach((item, index) => {
       if (!item.degree.trim()) newErrors[`degree_${index}`] = "Degree is required";
       if (!item.institution.trim()) newErrors[`institution_${index}`] = "Institution is required";
       if (!item.duration.trim()) newErrors[`duration_${index}`] = "Duration is required";
@@ -54,23 +46,19 @@ const AboutMe = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // 2. Save data to MongoDB
   const handleSave = async () => {
     if (validate()) {
       try {
         const response = await axios.post(`${API_URL}/update/education`, {
-          coreObjective: formData.coreObjective, 
-          academic: formData.academic
+          academic
         });
-        
-        setFormData({
-          coreObjective: response.data.coreObjective,
-          academic: response.data.academic
-        });
-        
+
+        if (response.data && Array.isArray(response.data.academic)) {
+          setAcademic(response.data.academic);
+        }
         setIsModalOpen(false);
         setErrors({});
-      } catch(err) {
+      } catch (err) {
         console.error("Save Error:", err.message);
         alert("Failed to save changes.");
       }
@@ -78,25 +66,20 @@ const AboutMe = () => {
   };
 
   const addEducation = () => {
-    setFormData({
-      ...formData,
-      academic: [
-        ...formData.academic,
-        { id: Date.now().toString(), degree: "", institution: "", duration: "", cgpa: "" }
-      ]
-    });
+    setAcademic([
+      ...academic,
+      { id: Date.now().toString(), degree: "", institution: "", duration: "", cgpa: "" }
+    ]);
   };
 
   const removeEducation = (index) => {
-    const updated = formData.academic.filter((_, i) => i !== index);
-    setFormData({ ...formData, academic: updated });
+    setAcademic(academic.filter((_, i) => i !== index));
   };
 
   const updateEducationField = (index, field, value) => {
-    const updated = formData.academic.map((item, i) => 
+    setAcademic(academic.map((item, i) =>
       i === index ? { ...item, [field]: value } : item
-    );
-    setFormData({ ...formData, academic: updated });
+    ));
   };
 
   const closeModal = () => {
@@ -106,36 +89,31 @@ const AboutMe = () => {
 
   if (isLoading) {
     return (
-      <div className="loading-container" role="status" aria-label="Loading about section">
+      <div className="loading-container" role="status" aria-label="Loading education section">
         <div className="loading-spinner"></div>
-        <p className="loading-text">Loading About Section...</p>
+        <p className="loading-text">Loading Education Section...</p>
       </div>
     );
   }
 
   return (
-    <section className="about-section" id="about">
+    <section className="education-admin-section" id="education">
       <div className="section-title-row">
-        <h3>About Me</h3>
-        <button className="btn-text-edit" onClick={() => setIsModalOpen(true)}>
+        <div>
+          <h3>Education Management</h3>
+          <p>Manage your academic degrees, institutions, and qualifications.</p>
+        </div>
+        <button className="btn-add-project" onClick={() => setIsModalOpen(true)}>
           <span className="material-symbols-outlined icon-small">edit</span>
-          Edit Profile
+          Manage Education
         </button>
       </div>
 
       <div className="card card-padding">
-        <div className="objective-container">
-          <h5 className="label-small">Core Objective</h5>
-          <p className="text-content">
-            {formData.coreObjective || "Define your professional objective by clicking Edit."}
-          </p>
-        </div>
-
         <div className="academic-section">
-          <h5 className="label-small">Academic Background</h5>
           <div className="academic-list">
-            {formData.academic.length > 0 ? (
-              formData.academic.map((edu) => (
+            {academic.length > 0 ? (
+              academic.map((edu) => (
                 <div key={edu.id} className="academic-card">
                   <div className="academic-main">
                     <div className="icon-box">
@@ -159,22 +137,10 @@ const AboutMe = () => {
         </div>
       </div>
 
-      <Modal title="Refine About & Education" isOpen={isModalOpen} onClose={closeModal} onSave={handleSave}>
-        <div className="form-field">
-          <label>Core Objective</label>
-          <textarea 
-            rows={4} 
-            className={`form-textarea ${errors.coreObjective ? 'error' : ''}`} 
-            value={formData.coreObjective} 
-            onChange={(e) => setFormData({...formData, coreObjective: e.target.value})} 
-            placeholder="Write a brief professional summary..."
-          />
-          {errors.coreObjective && <span className="form-error-msg">{errors.coreObjective}</span>}
-        </div>
-        
+      <Modal title="Manage Education History" isOpen={isModalOpen} onClose={closeModal} onSave={handleSave}>
         <div className="form-divider-row">
           <div className="form-divider">
-            <span>Education History</span>
+            <span>Qualifications</span>
           </div>
           <button className="btn-add-inline" onClick={addEducation}>
             <span className="material-symbols-outlined">add_circle</span>
@@ -182,60 +148,60 @@ const AboutMe = () => {
           </button>
         </div>
 
-        {formData.academic.map((edu, index) => (
+        {academic.map((edu, index) => (
           <div key={edu.id} className="education-form-block">
             <div className="education-block-header">
-              <span className="education-index">Qualification # {index + 1}</span>
+              <span className="education-index">Qualification #{index + 1}</span>
               <button className="btn-remove-inline" onClick={() => removeEducation(index)}>
                 <span className="material-symbols-outlined">delete</span>
               </button>
             </div>
-            
+
             <div className="form-grid-2">
               <div className="form-field">
                 <label>Degree Name</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors[`degree_${index}`] ? 'error' : ''}`} 
-                  value={edu.degree} 
-                  onChange={(e) => updateEducationField(index, 'degree', e.target.value)} 
-                  placeholder="e.g. B.Sc in Computer Science"
+                <input
+                  type="text"
+                  className={`form-input ${errors[`degree_${index}`] ? 'error' : ''}`}
+                  value={edu.degree}
+                  onChange={(e) => updateEducationField(index, 'degree', e.target.value)}
+                  placeholder="e.g. B.Tech in AI & Data Science"
                 />
                 {errors[`degree_${index}`] && <span className="form-error-msg">{errors[`degree_${index}`]}</span>}
               </div>
               <div className="form-field">
                 <label>Institution</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors[`institution_${index}`] ? 'error' : ''}`} 
-                  value={edu.institution} 
-                  onChange={(e) => updateEducationField(index, 'institution', e.target.value)} 
-                  placeholder="University Name"
+                <input
+                  type="text"
+                  className={`form-input ${errors[`institution_${index}`] ? 'error' : ''}`}
+                  value={edu.institution}
+                  onChange={(e) => updateEducationField(index, 'institution', e.target.value)}
+                  placeholder="University / College Name"
                 />
                 {errors[`institution_${index}`] && <span className="form-error-msg">{errors[`institution_${index}`]}</span>}
               </div>
             </div>
-            
+
             <div className="form-grid-2">
               <div className="form-field">
                 <label>Duration</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors[`duration_${index}`] ? 'error' : ''}`} 
-                  value={edu.duration} 
-                  onChange={(e) => updateEducationField(index, 'duration', e.target.value)} 
-                  placeholder="e.g. 2018 - 2022" 
+                <input
+                  type="text"
+                  className={`form-input ${errors[`duration_${index}`] ? 'error' : ''}`}
+                  value={edu.duration}
+                  onChange={(e) => updateEducationField(index, 'duration', e.target.value)}
+                  placeholder="e.g. 2021 - 2025"
                 />
                 {errors[`duration_${index}`] && <span className="form-error-msg">{errors[`duration_${index}`]}</span>}
               </div>
               <div className="form-field">
                 <label>CGPA / Percentage</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors[`cgpa_${index}`] ? 'error' : ''}`} 
-                  value={edu.cgpa} 
-                  onChange={(e) => updateEducationField(index, 'cgpa', e.target.value)} 
-                  placeholder="e.g. 3.8/4.0"
+                <input
+                  type="text"
+                  className={`form-input ${errors[`cgpa_${index}`] ? 'error' : ''}`}
+                  value={edu.cgpa}
+                  onChange={(e) => updateEducationField(index, 'cgpa', e.target.value)}
+                  placeholder="e.g. 8.5 CGPA"
                 />
                 {errors[`cgpa_${index}`] && <span className="form-error-msg">{errors[`cgpa_${index}`]}</span>}
               </div>
@@ -247,4 +213,4 @@ const AboutMe = () => {
   );
 };
 
-export default AboutMe;
+export default EducationSection;

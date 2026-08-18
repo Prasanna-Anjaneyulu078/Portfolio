@@ -11,7 +11,14 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
+const dns = require('dns');
 const Admin = require('./Models/admin.js');
+
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  // Ignore DNS override errors
+}
 
 dotenv.config();
 

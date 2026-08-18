@@ -4,7 +4,7 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const PRIMARY_API_URL = import.meta.env.VITE_API_URL || 'https://prasanna-portfolio-admin.vercel.app/api';
+const PRIMARY_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
 const LOCAL_API_URL = 'http://localhost:3002/api';
 
 const apiCall = async (method, endpoint = '', data = null) => {
@@ -28,17 +28,26 @@ const ProjectsSection = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [errors, setErrors] = useState({});
   
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Types");
+
   const [projectForm, setProjectForm] = useState({
     title: "",
     description: "",
     imageUrl: "",
     codeUrl: "",
     demoUrl: "",
-    category: "Full Stack" 
+    category: "Full Stack",
+    isFeatured: false
   });
 
   const [tagsInput, setTagsInput] = useState("");
   const [techStackInput, setTechStackInput] = useState("");
+
+  const featuredProjects = projects
+    .filter(p => p.isFeatured)
+    .sort((a, b) => (a.featuredOrder || 99) - (b.featuredOrder || 99));
+  const featuredCount = featuredProjects.length;
 
   const fetchProjects = async () => {
     try {
@@ -56,6 +65,44 @@ const ProjectsSection = () => {
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  const toggleFeature = async (project) => {
+    if (!project.isFeatured && featuredCount >= 3) {
+      alert("Only 3 featured projects are allowed. Please remove one featured project before selecting another.");
+      return;
+    }
+    try {
+      const res = await apiCall('patch', `/projects/${project._id}/feature`);
+      if (res.data?.projects) {
+        setProjects(res.data.projects);
+      } else {
+        await fetchProjects();
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to update feature status.";
+      alert(msg);
+    }
+  };
+
+  const moveFeatured = async (currentIndex, direction) => {
+    const newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= featuredProjects.length) return;
+    const newOrder = [...featuredProjects];
+    const temp = newOrder[currentIndex];
+    newOrder[currentIndex] = newOrder[newIndex];
+    newOrder[newIndex] = temp;
+    const orderedIds = newOrder.map(p => p._id);
+    try {
+      const res = await apiCall('post', '/projects/reorder-featured', { orderedIds });
+      if (res.data?.projects) {
+        setProjects(res.data.projects);
+      } else {
+        await fetchProjects();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to reorder projects.");
+    }
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -78,7 +125,8 @@ const ProjectsSection = () => {
       imageUrl: "", 
       codeUrl: "", 
       demoUrl: "", 
-      category: "Full Stack" 
+      category: "Full Stack",
+      isFeatured: false
     });
     setTagsInput("");
     setTechStackInput("");
@@ -94,7 +142,8 @@ const ProjectsSection = () => {
       imageUrl: project.imageUrl,
       codeUrl: project.codeUrl || "",
       demoUrl: project.demoUrl || "",
-      category: project.category || "Full Stack"
+      category: project.category || "Full Stack",
+      isFeatured: Boolean(project.isFeatured)
     });
     setTagsInput(project.tags ? project.tags.join(", ") : "");
     setTechStackInput(project.techStack ? project.techStack.join(", ") : "");
@@ -104,6 +153,11 @@ const ProjectsSection = () => {
 
   const handleSave = async () => {
     if (validate()) {
+      if (projectForm.isFeatured && (!editingProject || !editingProject.isFeatured) && featuredCount >= 3) {
+        alert("Only 3 featured projects are allowed. Please remove one featured project before selecting another.");
+        return;
+      }
+
       const parsedTags = tagsInput.split(",").map(t => t.trim()).filter(t => t !== "");
       const parsedTech = techStackInput.split(",").map(t => t.trim()).filter(t => t !== "");
 
@@ -121,7 +175,10 @@ const ProjectsSection = () => {
         setEditingProject(null);
         setErrors({});
       } catch (err) {
-        console.error("Save error:", err.message);
+        const msg = err.response?.data?.message || err.message || "Failed to save project.";
+        const field = err.response?.data?.field || "general";
+        setErrors(prev => ({ ...prev, [field]: msg, general: msg }));
+        alert(msg);
       }
     }
   };
@@ -145,6 +202,13 @@ const ProjectsSection = () => {
     }
   };
 
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = project.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          project.category?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === "All Types" || project.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   if (isLoading) {
     return (
       <div className="loading-container" role="status" aria-label="Loading projects">
@@ -158,7 +222,12 @@ const ProjectsSection = () => {
     <section className="section-container" id="projects">
       <div className="section-title-row">
         <div className="section-header">
-          <h3>Project Library</h3>
+          <h3>
+            Project Library
+            <span className="featured-counter-badge">
+              Featured Projects: {featuredCount} / 3
+            </span>
+          </h3>
           <p>Detailed overview of your engineering milestones and contributions.</p>
         </div>
         <button className="btn-add-project" onClick={openAddModal}>
@@ -167,94 +236,180 @@ const ProjectsSection = () => {
         </button>
       </div>
 
+      <div className="projects-toolbar-row">
+        <div className="search-input-wrapper">
+          <span className="material-symbols-outlined search-icon">search</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Search projects..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="filter-select-wrapper">
+          <select 
+            className="filter-select"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+          >
+            <option value="All Types">All Types</option>
+            <option value="Full Stack">Full Stack</option>
+            <option value="Front End">Front End</option>
+            <option value="Back End">Back End</option>
+          </select>
+        </div>
+      </div>
+
       <div className="projects-display-wrapper">
         {projects.length === 0 ? (
           <div className="empty-projects-canvas">
             <span className="material-symbols-outlined icon-giant">folder_off</span>
             <div className="empty-text-group">
-              <h4>No projects in your library</h4>
+              <h4>No Projects Found</h4>
               <p>Items you add will appear here in a manageable table format.</p>
             </div>
-            <button className="btn-primary-action" onClick={openAddModal}>Add Your First Project</button>
+            <button className="btn-primary-action" onClick={openAddModal}>+ Add Project</button>
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="empty-projects-canvas">
+            <span className="material-symbols-outlined icon-giant">search_off</span>
+            <div className="empty-text-group">
+              <h4>No projects match your search.</h4>
+              <p>Try adjusting your search terms or filter selection.</p>
+            </div>
+            <button className="btn-primary-action" onClick={() => { setSearchTerm(''); setSelectedCategory('All Types'); }}>
+              Clear Filters
+            </button>
           </div>
         ) : (
           <div className="projects-table-container">
             <table className="projects-table">
               <thead>
                 <tr>
-                  <th className="th-thumb">Preview</th>
-                  <th className="th-identity">Project Identity & Type</th>
-                  <th className="th-tags">Classifications</th>
-                  <th className="th-stack">Technology Stack</th>
-                  <th className="th-links">Resources</th>
-                  <th className="th-actions">Manage</th>
+                  <th className="th-project">Project</th>
+                  <th className="th-featured">Featured</th>
+                  <th className="th-resources">Resources</th>
+                  <th className="th-manage">Manage</th>
                 </tr>
               </thead>
               <tbody>
-                {projects.map(project => (
-                  <tr key={project._id}>
-                    <td>
-                      <div 
-                        className="table-thumb-box clickable" 
-                        style={{ backgroundImage: `url(${project.imageUrl})` }}
-                        onClick={() => setSelectedProject(project)}
-                        title="Click to view details"
-                      >
-                        {!project.imageUrl && <span className="material-symbols-outlined">image</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-identity-block">
-                        <button 
-                          className="table-title-btn" 
-                          onClick={() => setSelectedProject(project)}
-                          title="Click to view project details"
-                        >
-                          {project.title}
-                        </button>
-                        <span className="table-chip-tag" style={{fontSize: '10px', width: 'fit-content'}}>{project.category}</span>
-                        <span className="table-desc-sub">{project.description}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-tag-list">
-                        {project.tags && project.tags.map(tag => <span key={tag} className="table-chip-tag">{tag}</span>)}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-stack-list">
-                        {project.techStack && project.techStack.map(tech => <span key={tech} className="table-chip-stack">{tech}</span>)}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-link-group">
-                        {project.codeUrl && (
-                          <a href={project.codeUrl.startsWith('http') ? project.codeUrl : `https://${project.codeUrl}`} target="_blank" rel="noopener noreferrer" className="table-nav-link" title="Code Repository">
-                            <span className="material-symbols-outlined">code</span>
-                          </a>
+                {filteredProjects.map(project => {
+                  const featuredIdx = featuredProjects.findIndex(p => p._id === project._id);
+                  return (
+                    <tr key={project._id}>
+                      <td className="td-project">
+                        <div className="table-project-cell">
+                          <div 
+                            className="table-project-thumb clickable" 
+                            style={{ backgroundImage: project.imageUrl ? `url(${project.imageUrl})` : 'none' }}
+                            onClick={() => setSelectedProject(project)}
+                            title="Click to view details"
+                          >
+                            {!project.imageUrl && <span className="material-symbols-outlined">image</span>}
+                          </div>
+                          <div className="table-project-info">
+                            <button 
+                              className="table-title-btn" 
+                              onClick={() => setSelectedProject(project)}
+                              title="Click to view project details"
+                            >
+                              {project.title}
+                            </button>
+                            {project.category && (
+                              <span className="table-chip-tag project-type-badge">{project.category}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="td-featured">
+                        {project.isFeatured ? (
+                          <div className="featured-badge-group">
+                            <span className="featured-badge active" title="Currently shown on User Portfolio">
+                              ✓ Featured #{project.featuredOrder}
+                            </span>
+                            <div className="order-btns-group">
+                              <button 
+                                className="btn-order-arrow" 
+                                disabled={featuredIdx <= 0}
+                                onClick={() => moveFeatured(featuredIdx, -1)}
+                                title="Move Up in Featured Order"
+                              >
+                                ▲
+                              </button>
+                              <button 
+                                className="btn-order-arrow" 
+                                disabled={featuredIdx < 0 || featuredIdx >= featuredProjects.length - 1}
+                                onClick={() => moveFeatured(featuredIdx, 1)}
+                                title="Move Down in Featured Order"
+                              >
+                                ▼
+                              </button>
+                            </div>
+                            <button 
+                              className="btn-unfeature"
+                              onClick={() => toggleFeature(project)}
+                              title="Remove from Featured"
+                            >
+                              Unfeature
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            className="btn-feature-action"
+                            onClick={() => toggleFeature(project)}
+                            title={featuredCount >= 3 ? "Maximum 3 projects already featured" : "Feature on Portfolio"}
+                          >
+                            + Feature
+                          </button>
                         )}
-                        {project.demoUrl && (
-                          <a href={project.demoUrl.startsWith('http') ? project.demoUrl : `https://${project.demoUrl}`} target="_blank" rel="noopener noreferrer" className="table-nav-link demo-accent" title="Live Demo">
-                            <span className="material-symbols-outlined">public</span>
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-btn-group">
-                        <button onClick={() => setSelectedProject(project)} className="table-btn-icon view-btn" title="View Project Details">
-                          <span className="material-symbols-outlined">visibility</span>
-                        </button>
-                        <button onClick={() => openEditModal(project)} className="table-btn-icon edit-btn" title="Edit Project">
-                          <span className="material-symbols-outlined">edit</span>
-                        </button>
-                        <button onClick={() => deleteProject(project._id)} className="table-btn-icon delete-btn" title="Delete Project">
-                          <span className="material-symbols-outlined">delete_forever</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="td-resources">
+                        <div className="mobile-cell-label">Resources</div>
+                        <div className="table-resource-links">
+                          {project.codeUrl && (
+                            <a 
+                              href={project.codeUrl.startsWith('http') ? project.codeUrl : `https://${project.codeUrl}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="resource-btn" 
+                              title="View GitHub Repository"
+                            >
+                              GitHub <span className="material-symbols-outlined icon-ext">open_in_new</span>
+                            </a>
+                          )}
+                          {project.demoUrl && (
+                            <a 
+                              href={project.demoUrl.startsWith('http') ? project.demoUrl : `https://${project.demoUrl}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="resource-btn demo-btn" 
+                              title="View Live Demo"
+                            >
+                              Live Demo <span className="material-symbols-outlined icon-ext">open_in_new</span>
+                            </a>
+                          )}
+                          {!project.codeUrl && !project.demoUrl && (
+                            <span className="no-resources-text">None</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="td-manage">
+                        <div className="table-action-btns">
+                          <button onClick={() => setSelectedProject(project)} className="action-btn view-btn" title="View Project" aria-label="View Project">
+                            <span className="material-symbols-outlined">visibility</span>
+                          </button>
+                          <button onClick={() => openEditModal(project)} className="action-btn edit-btn" title="Edit Project" aria-label="Edit Project">
+                            <span className="material-symbols-outlined">edit</span>
+                          </button>
+                          <button onClick={() => deleteProject(project._id)} className="action-btn delete-btn" title="Delete Project" aria-label="Delete Project">
+                            <span className="material-symbols-outlined">delete_forever</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -390,6 +545,30 @@ const ProjectsSection = () => {
                 onChange={(e) => setProjectForm({...projectForm, description: e.target.value})} 
               />
               {errors.description && <span className="form-error-msg">{errors.description}</span>}
+            </div>
+          </div>
+
+          <div className="form-group-box">
+            <h6 className="group-label">Portfolio User Visibility</h6>
+            <div className="form-field">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontWeight: 600 }}>
+                <input 
+                  type="checkbox" 
+                  checked={projectForm.isFeatured} 
+                  onChange={(e) => {
+                    if (e.target.checked && (!editingProject || !editingProject.isFeatured) && featuredCount >= 3) {
+                      alert("Only 3 featured projects are allowed. Please remove one featured project before selecting another.");
+                      return;
+                    }
+                    setProjectForm({ ...projectForm, isFeatured: e.target.checked });
+                  }}
+                  style={{ width: '1.1rem', height: '1.1rem', accentColor: 'var(--primary)' }}
+                />
+                Show on User Portfolio as Featured Project
+              </label>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
+                Featured Projects Counter: {featuredCount} / 3 selected.
+              </p>
             </div>
           </div>
 

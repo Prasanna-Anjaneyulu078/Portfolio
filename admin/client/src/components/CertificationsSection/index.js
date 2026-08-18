@@ -4,7 +4,7 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const PRIMARY_API_URL = import.meta.env.VITE_API_URL || 'https://prasanna-portfolio-admin.vercel.app/api/certifications';
+const PRIMARY_API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/certifications`;
 const LOCAL_API_URL = 'http://localhost:3002/api/certifications';
 
 const apiCall = async (method, endpoint = '', data = null) => {
@@ -112,8 +112,10 @@ const CertificationsSection = () => {
       setEditingCert(null);
       setErrors({});
     } catch (err) {
-      console.error("Save Error:", err.message);
-      alert("Failed to save certification. Please check backend connection.");
+      const msg = err.response?.data?.message || err.message || "Failed to save certification.";
+      const field = err.response?.data?.field || "general";
+      setErrors(prev => ({ ...prev, [field]: msg, general: msg }));
+      alert(msg);
     }
   };
 

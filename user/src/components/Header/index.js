@@ -1,42 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios'
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './Header.css';
 
-const Header = () => {
+// Full ordered master navigation items list
+const MASTER_NAV_ITEMS = [
+  { id: 'home', name: 'Home', href: '#home' },
+  { id: 'skills', name: 'Skills', href: '#skills' },
+  { id: 'projects', name: 'Projects', href: '#projects' },
+  { id: 'experience', name: 'Experience', href: '#experience' },
+  { id: 'education', name: 'Education', href: '#education' },
+  { id: 'certifications', name: 'Certifications', href: '#certifications' },
+  { id: 'contact', name: 'Contact', href: '#contact' },
+];
+
+const Header = ({ visibleSections = [], userData = {} }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
 
-  const navLinks = [
-    { name: 'Home', href: '#home' },
-    { name: 'About', href: '#about' },
-    { name: 'Projects', href: '#projects' },
-    { name: 'Skills', href: '#skills' },
-    { name: 'Contact', href: '#contact' },
-  ];
-
-  const API_URL = "https://prasanna-portfolio-admin.vercel.app/api/user"
-
-  const [data, setData] = useState({
-    name: '',
-    avatarUrl: '',
-  })
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get(API_URL)
-        const {name, avatarUrl} = response.data
-        setData({name: name, avatarUrl: avatarUrl})
-        // console.log(response.data)
-      } catch (err) {
-        console.log(`Error: ${err.message}`)
-      }
-    }
-    fetchData()
-  }, [])
+  // Filter navbar links to strictly match visible sections
+  const navLinks = MASTER_NAV_ITEMS.filter((item) =>
+    visibleSections.includes(item.id)
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -49,9 +33,8 @@ const Header = () => {
   useEffect(() => {
     const observerOptions = {
       root: null,
-      // Adjusted margin to detect sections when they occupy the top-middle of the viewport
-      rootMargin: '-10% 0px -70% 0px',
-      threshold: 0
+      rootMargin: '-15% 0px -65% 0px',
+      threshold: 0,
     };
 
     const handleIntersect = (entries) => {
@@ -67,29 +50,24 @@ const Header = () => {
     sections.forEach((section) => observer.observe(section));
 
     return () => observer.disconnect();
-  }, []);
+  }, [visibleSections]);
 
   const handleLinkClick = (e, href) => {
-    // Standard behavior for desktop/anchor navigation
-    // On mobile we need to close the menu
     setIsMenuOpen(false);
-    
-    // Optional: manual scroll if native behavior is inconsistent
     const targetId = href.replace('#', '');
     const element = document.getElementById(targetId);
     if (element) {
-      const headerOffset = 72; // height of the sticky header
+      e.preventDefault();
+      const headerOffset = 72;
       const elementPosition = element.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
 
       window.scrollTo({
         top: offsetPosition,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
-      
-      // Update state immediately to improve UI feedback
+
       setActiveSection(targetId);
-      e.preventDefault();
     }
   };
 
@@ -98,21 +76,27 @@ const Header = () => {
       <div className="container header-inner">
         <a className="logo" href="#home" onClick={(e) => handleLinkClick(e, '#home')}>
           <div className="logo-profile-wrapper">
-            <img 
-              src={data.avatarUrl || null}
-              alt={data.name || 'User'} 
-              className="logo-img" 
-              loading="lazy"
-            />
+            {userData.avatarUrl ? (
+              <img
+                src={userData.avatarUrl}
+                alt={userData.name || 'User'}
+                className="logo-img"
+                loading="lazy"
+              />
+            ) : (
+              <span className="logo-fallback">
+                {(userData.name || 'P')[0]?.toUpperCase()}
+              </span>
+            )}
           </div>
-          <h2 className="logo-text">{data.name}</h2>
+          <h2 className="logo-text">{userData.name || 'Portfolio'}</h2>
         </a>
-        
+
         <nav className="nav-desktop">
           {navLinks.map((link) => (
-            <a 
-              key={link.name} 
-              className={`nav-link ${activeSection === link.href.slice(1) ? 'active' : ''}`} 
+            <a
+              key={link.id}
+              className={`nav-link ${activeSection === link.id ? 'active' : ''}`}
               href={link.href}
               onClick={(e) => handleLinkClick(e, link.href)}
             >
@@ -121,7 +105,7 @@ const Header = () => {
           ))}
         </nav>
 
-        <button 
+        <button
           className="menu-toggle"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           aria-label="Toggle navigation menu"
@@ -133,8 +117,8 @@ const Header = () => {
       <div className={`nav-mobile ${isMenuOpen ? 'open' : ''}`}>
         {navLinks.map((link) => (
           <a
-            key={link.name}
-            className={`mobile-link ${activeSection === link.href.slice(1) ? 'active' : ''}`}
+            key={link.id}
+            className={`mobile-link ${activeSection === link.id ? 'active' : ''}`}
             href={link.href}
             onClick={(e) => handleLinkClick(e, link.href)}
           >

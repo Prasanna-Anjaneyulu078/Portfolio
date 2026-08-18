@@ -1,17 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import PersonalDetails from './components/PersonalDetails';
-import AboutMe from './components/AboutMe';
+import EducationSection from './components/EducationSection';
 import SkillsSection from './components/SkillsSection';
 import ProjectsSection from './components/ProjectsSection';
 import CertificationsSection from './components/CertificationsSection';
+import ExperienceSection from './components/ExperienceSection';
 import ResumeSection from './components/ResumeSection';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import './index.css';
 import './App.css';
+
+// Attach adminToken cookie to all outbound Axios requests
+axios.interceptors.request.use((config) => {
+  const token = Cookies.get('adminToken');
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => Promise.reject(error));
 
 const EMPTY_STATE = {
   name: "",
@@ -22,15 +33,15 @@ const EMPTY_STATE = {
   githubUrl: "",
   linkedinUrl: "",
   avatarUrl: "",
-  coreObjective: "",
   academic: [],
   skillGroups: [],
   codingProfiles: [],
   projects: [],
+  experiences: [],
   resumes: []
 };
 
-const PRIMARY_API = 'https://prasanna-portfolio-admin.vercel.app/api';
+const PRIMARY_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
 const LOCAL_API = 'http://localhost:3002/api';
 
 const apiGet = async (endpoint) => {
@@ -50,11 +61,31 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Verify existing token on mount
+  // Setup response interceptor for 401/403 unauthorized handling
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          Cookies.remove('adminToken');
+          setIsAuthenticated(false);
+          setData(EMPTY_STATE);
+          setActiveTab('overview');
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
+
+  // Verify existing token on mount & protect browser navigation
   useEffect(() => {
     const verifyToken = async () => {
-      const token = sessionStorage.getItem('admin_token');
+      const token = Cookies.get('adminToken');
       if (!token) {
+        setIsAuthenticated(false);
         setAuthChecking(false);
         return;
       }
@@ -72,17 +103,37 @@ const App = () => {
             });
             setIsAuthenticated(true);
           } catch {
-            sessionStorage.removeItem('admin_token');
+            Cookies.remove('adminToken');
+            setIsAuthenticated(false);
           }
         } else {
           // Token invalid/expired
-          sessionStorage.removeItem('admin_token');
+          Cookies.remove('adminToken');
+          setIsAuthenticated(false);
         }
       } finally {
         setAuthChecking(false);
       }
     };
+
     verifyToken();
+
+    // Re-verify token on browser Back/Forward or page visibility restore
+    const handleNavigation = () => {
+      const token = Cookies.get('adminToken');
+      if (!token) {
+        setIsAuthenticated(false);
+        setData(EMPTY_STATE);
+        setActiveTab('overview');
+      }
+    };
+
+    window.addEventListener('popstate', handleNavigation);
+    window.addEventListener('pageshow', handleNavigation);
+    return () => {
+      window.removeEventListener('popstate', handleNavigation);
+      window.removeEventListener('pageshow', handleNavigation);
+    };
   }, []);
 
   const handleLogin = (token) => {
@@ -90,7 +141,7 @@ const App = () => {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('admin_token');
+    Cookies.remove('adminToken');
     setIsAuthenticated(false);
     setData(EMPTY_STATE);
     setActiveTab('overview');
@@ -102,10 +153,14 @@ const App = () => {
     const fetchDatabaseData = async () => {
       try {
         setIsLoading(true);
-        const skillsRes = await apiGet('/skill-groups');
+        const [skillsRes, expRes] = await Promise.allSettled([
+          apiGet('/skill-groups'),
+          apiGet('/experiences')
+        ]);
         setData(prev => ({
           ...prev,
-          skillGroups: skillsRes.data,
+          skillGroups: skillsRes.status === 'fulfilled' ? skillsRes.value.data : [],
+          experiences: expRes.status === 'fulfilled' ? expRes.value.data : [],
         }));
       } catch (err) {
         console.error("Error connecting to database:", err);
@@ -131,12 +186,14 @@ const App = () => {
         return <Dashboard data={data} onNavigate={setActiveTab} />;
       case 'personal':
         return <PersonalDetails data={data} onUpdate={setData} />;
-      case 'about':
-        return <AboutMe data={data} onUpdate={setData} />;
+      case 'education':
+        return <EducationSection data={data} onUpdate={setData} />;
       case 'skills':
         return <SkillsSection data={data} onUpdate={setData} />;
       case 'projects':
         return <ProjectsSection data={data} onUpdate={setData} />;
+      case 'experience':
+        return <ExperienceSection data={data} onUpdate={setData} />;
       case 'certifications':
         return <CertificationsSection data={data} onUpdate={setData} />;
       case 'resume':
@@ -218,4 +275,3 @@ const App = () => {
 };
 
 export default App;
-

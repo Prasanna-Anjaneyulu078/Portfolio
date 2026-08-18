@@ -8,7 +8,7 @@ const Header = ({ onMenuClick, activeTab, avatarUrl, userName }) => {
     switch (tab) {
       case 'overview': return 'Dashboard';
       case 'personal': return 'Personal Profile';
-      case 'about': return 'About & Education';
+      case 'education': return 'Education Management';
       case 'skills': return 'Skills & Footprint';
       case 'projects': return 'Project Library';
       case 'certifications': return 'Certifications';
@@ -24,7 +24,7 @@ const Header = ({ onMenuClick, activeTab, avatarUrl, userName }) => {
     avatarUrl: '',
   })
 
-  const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api/user'
+  const API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/user`;
 
   useEffect(() => {
     const fetchData = async () => {

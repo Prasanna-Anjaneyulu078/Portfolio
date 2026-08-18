@@ -8,12 +8,13 @@ const Sidebar = ({ isOpen, onClose, activeTab, onTabChange, avatarUrl, onLogout 
 
   const navItems = [
     { id: 'overview', label: 'Dashboard', icon: 'dashboard' },
-    { id: 'personal', label: 'Personal Details', icon: 'person' },
-    { id: 'about', label: 'About & Education', icon: 'school' },
-    { id: 'skills', label: 'Skills & Stack', icon: 'code' },
     { id: 'projects', label: 'Project Library', icon: 'work' },
+    { id: 'skills', label: 'Skills & Stack', icon: 'code' },
+    { id: 'experience', label: 'Experience', icon: 'business_center' },
+    { id: 'education', label: 'Education', icon: 'school' },
     { id: 'certifications', label: 'Certifications', icon: 'workspace_premium' },
     { id: 'resume', label: 'Resume Manager', icon: 'description' },
+    { id: 'personal', label: 'Personal Details', icon: 'person' },
   ];
 
   const [user, setUser] = useState({
@@ -21,7 +22,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, onTabChange, avatarUrl, onLogout 
     avatarUrl: '',
   })
 
-  const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api/user'
+  const API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/user`;
 
   useEffect(() => {
     const fetchData = async () => {

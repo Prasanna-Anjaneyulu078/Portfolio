@@ -1,0 +1,64 @@
+.education-admin-section {
+  width: 100%;
+}
+
+.academic-card {
+  background-color: var(--bg-white, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: var(--radius-xl, 0.75rem);
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.academic-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.icon-box {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-lg, 0.5rem);
+  background-color: rgba(19, 91, 236, 0.1);
+  color: var(--primary, #135bec);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.academic-info h6 {
+  font-size: var(--font-admin-h3);
+  font-weight: 700;
+  color: var(--text-main, #1e293b);
+  margin-bottom: 0.2rem;
+}
+
+.academic-info p {
+  font-size: var(--font-admin-body);
+  color: var(--text-muted, #64748b);
+}
+
+.academic-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.duration {
+  font-size: var(--font-admin-small);
+  color: var(--text-muted);
+}
+
+.badge {
+  background-color: rgba(19, 91, 236, 0.1);
+  color: var(--primary);
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: var(--font-admin-small);
+  font-weight: 700;
+}

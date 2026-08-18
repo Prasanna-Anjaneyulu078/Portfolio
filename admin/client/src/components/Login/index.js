@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import './index.css';
 
-const PRIMARY_API = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/auth/login`
-  : 'https://prasanna-portfolio-admin.vercel.app/api/auth/login';
+const PRIMARY_API = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/auth/login`;
 const LOCAL_API = 'http://localhost:3002/api/auth/login';
 
 const Login = ({ onLogin }) => {
@@ -37,7 +36,7 @@ const Login = ({ onLogin }) => {
         }
       }
       const { token } = res.data;
-      sessionStorage.setItem('admin_token', token);
+      Cookies.set('adminToken', token, { expires: 1, sameSite: 'strict' });
       onLogin(token);
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
@@ -68,7 +67,7 @@ const Login = ({ onLogin }) => {
                 id="login-email"
                 type="email"
                 className={`login-input ${error ? 'login-input-error' : ''}`}
-                placeholder="admin@example.com"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 autoComplete="username"

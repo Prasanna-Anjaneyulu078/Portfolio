@@ -4,6 +4,13 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const dns = require('dns');
+
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  // Ignore DNS override errors
+}
 
 // --- MODELS ---
 const personalDetailsModel = require('./Models/personalDetails.js');
@@ -13,7 +20,16 @@ const SkillGroup = require('./Models/skillGroup.js');
 const CodingProfile = require('./Models/codingProfile.js');
 const Resume = require('./Models/resume.js');
 const Certification = require('./Models/certification.js');
+const Experience = require('./Models/experience.js');
 const Admin = require('./Models/admin.js');
+const {
+  normalizeText,
+  normalizeUrl,
+  calculateSHA256,
+  checkProjectUniqueness,
+  checkCertificateUniqueness,
+  checkResumeUniqueness
+} = require('./utils/uniqueness.js');
 
 dotenv.config();
 const app = express();
@@ -29,6 +45,35 @@ app.use(cors({
 const PORT = process.env.PORT || 3002;
 const MONGO_URL = process.env.MONGO_URL;
 
+const compactFeaturedOrders = async () => {
+  try {
+    const featuredProjects = await projectModel.find({ isFeatured: true }).sort({ featuredOrder: 1, createdAt: -1 });
+    for (let i = 0; i < featuredProjects.length; i++) {
+      featuredProjects[i].featuredOrder = i + 1;
+      await featuredProjects[i].save();
+    }
+    return featuredProjects;
+  } catch (e) {
+    console.error("compactFeaturedOrders error:", e.message);
+  }
+};
+
+const initFeaturedProjects = async () => {
+  try {
+    const count = await projectModel.countDocuments({ isFeatured: true });
+    if (count === 0) {
+      const topProjects = await projectModel.find().sort({ createdAt: -1 }).limit(3);
+      for (let i = 0; i < topProjects.length; i++) {
+        topProjects[i].isFeatured = true;
+        topProjects[i].featuredOrder = i + 1;
+        await topProjects[i].save();
+      }
+    }
+  } catch (err) {
+    console.error("Auto-initialization of featured projects error:", err.message);
+  }
+};
+
 // --- DB CONNECTION ---
 // Lazy cached connection — works for both local server and Vercel serverless
 let dbConnected = false;
@@ -38,6 +83,7 @@ const connectDB = async () => {
         await mongoose.connect(MONGO_URL);
         dbConnected = true;
         console.log("MongoDB Connected Successfully");
+        await initFeaturedProjects();
     } catch (error) {
         console.error("MongoDB Connection Error:", error.message);
         throw error;
@@ -160,11 +206,11 @@ app.post('/api/user/update', requireAuth, async (req, res) => {
   }
 });
 
-// --- 2. EDUCATION & ABOUT ME ROUTES ---
+// --- 2. EDUCATION ROUTES ---
 app.get('/api/education', async (req, res) => {
   try {
     let data = await educationModel.findOne();
-    if (!data) return res.json({ coreObjective: '', academic: [] });
+    if (!data) return res.json({ academic: [] });
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: "Server Error", error: err.message });
@@ -175,7 +221,7 @@ app.post('/api/update/education', requireAuth, async (req, res) => {
   try {
     const updatedProfile = await educationModel.findOneAndUpdate(
       {}, 
-      req.body, 
+      { academic: req.body.academic }, 
       { new: true, upsert: true, runValidators: true }
     );
     res.status(200).json(updatedProfile);
@@ -187,9 +233,17 @@ app.post('/api/update/education', requireAuth, async (req, res) => {
 // --- 3. PROJECT ROUTES ---
 app.get('/api/projects', async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, featured } = req.query;
+
+    if (featured === 'true') {
+      const featuredProjects = await projectModel.find({ isFeatured: true })
+        .sort({ featuredOrder: 1, createdAt: -1 })
+        .limit(3);
+      return res.status(200).json(featuredProjects);
+    }
+
     let query = (category && category !== 'All') ? { category } : {};
-    const projects = await projectModel.find(query).sort({ createdAt: -1 });
+    const projects = await projectModel.find(query).sort({ isFeatured: -1, featuredOrder: 1, createdAt: -1 });
     res.status(200).json(projects);
   } catch (err) {
     res.status(500).json({ message: "Error fetching projects", error: err.message });
@@ -198,23 +252,159 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects/save', requireAuth, async (req, res) => {
   try {
-    const { _id, ...projectData } = req.body;
-    let result;
-    if (_id && mongoose.Types.ObjectId.isValid(_id)) {
-      result = await projectModel.findByIdAndUpdate(_id, projectData, { new: true });
+    const { _id, title, description, imageUrl, category, codeUrl, demoUrl, tags, techStack, isFeatured, featuredOrder } = req.body;
+    const targetId = (_id && mongoose.Types.ObjectId.isValid(_id)) ? _id : null;
+
+    const dupCheck = await checkProjectUniqueness(
+      projectModel, 
+      { title, codeUrl, demoUrl, imageUrl }, 
+      targetId
+    );
+
+    if (dupCheck.isDuplicate) {
+      return res.status(409).json({
+        success: false,
+        message: dupCheck.message,
+        field: dupCheck.field
+      });
+    }
+
+    let existingDoc = targetId ? await projectModel.findById(targetId) : null;
+    let shouldBeFeatured = Boolean(isFeatured);
+
+    if (shouldBeFeatured && (!existingDoc || !existingDoc.isFeatured)) {
+      const currentFeaturedCount = await projectModel.countDocuments({ 
+        isFeatured: true, 
+        _id: { $ne: targetId } 
+      });
+      if (currentFeaturedCount >= 3) {
+        return res.status(409).json({
+          success: false,
+          message: "Only 3 featured projects are allowed. Please remove one featured project before selecting another."
+        });
+      }
+    }
+
+    let finalFeaturedOrder = (existingDoc && existingDoc.isFeatured) ? existingDoc.featuredOrder : null;
+    if (shouldBeFeatured) {
+      if (typeof featuredOrder === 'number' && featuredOrder >= 1 && featuredOrder <= 3) {
+        finalFeaturedOrder = featuredOrder;
+      } else if (!finalFeaturedOrder) {
+        const currentFeaturedCount = await projectModel.countDocuments({ 
+          isFeatured: true, 
+          _id: { $ne: targetId } 
+        });
+        finalFeaturedOrder = currentFeaturedCount + 1;
+      }
     } else {
-      result = new projectModel(projectData);
+      finalFeaturedOrder = null;
+    }
+
+    const payload = {
+      title,
+      normalizedTitle: dupCheck.normalizedTitle,
+      description,
+      imageUrl,
+      imageHash: dupCheck.imageHash,
+      category,
+      codeUrl,
+      normalizedCodeUrl: dupCheck.normalizedCodeUrl,
+      demoUrl,
+      normalizedDemoUrl: dupCheck.normalizedDemoUrl,
+      tags,
+      techStack,
+      isFeatured: shouldBeFeatured,
+      featuredOrder: finalFeaturedOrder
+    };
+
+    let result;
+    if (targetId) {
+      result = await projectModel.findByIdAndUpdate(targetId, payload, { new: true, runValidators: true });
+    } else {
+      result = new projectModel(payload);
       await result.save();
     }
+
+    await compactFeaturedOrders();
     res.status(200).json(result);
   } catch (err) {
-    res.status(400).json({ message: "Operation failed", error: err.message });
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Project already exists. Please use a unique project."
+      });
+    }
+    res.status(400).json({ success: false, message: "Operation failed", error: err.message });
+  }
+});
+
+app.patch('/api/projects/:id/feature', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid project ID" });
+    }
+    const project = await projectModel.findById(id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    const newFeaturedState = !project.isFeatured;
+
+    if (newFeaturedState) {
+      const currentFeaturedCount = await projectModel.countDocuments({
+        isFeatured: true,
+        _id: { $ne: id }
+      });
+      if (currentFeaturedCount >= 3) {
+        return res.status(409).json({
+          success: false,
+          message: "Only 3 featured projects are allowed. Please remove one featured project before selecting another."
+        });
+      }
+      project.isFeatured = true;
+      project.featuredOrder = currentFeaturedCount + 1;
+    } else {
+      project.isFeatured = false;
+      project.featuredOrder = null;
+    }
+
+    await project.save();
+    await compactFeaturedOrders();
+
+    const updatedProjects = await projectModel.find().sort({ isFeatured: -1, featuredOrder: 1, createdAt: -1 });
+    res.json({ success: true, project, projects: updatedProjects });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/projects/reorder-featured', requireAuth, async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ message: "orderedIds array is required" });
+    }
+    for (let i = 0; i < orderedIds.length && i < 3; i++) {
+      const id = orderedIds[i];
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        await projectModel.findByIdAndUpdate(id, { isFeatured: true, featuredOrder: i + 1 });
+      }
+    }
+    await compactFeaturedOrders();
+    const updatedProjects = await projectModel.find().sort({ isFeatured: -1, featuredOrder: 1, createdAt: -1 });
+    res.json({ success: true, projects: updatedProjects });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 
 app.delete('/api/projects/:id', requireAuth, async (req, res) => {
   try {
+    const project = await projectModel.findById(req.params.id);
+    const wasFeatured = project ? project.isFeatured : false;
     await projectModel.findByIdAndDelete(req.params.id);
+    if (wasFeatured) {
+      await compactFeaturedOrders();
+    }
     res.json({ message: "Project deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -303,14 +493,36 @@ app.get('/api/resumes', async (req, res) => {
 // Upload/Save resume
 app.post('/api/resumes', requireAuth, async (req, res) => {
     try {
-        if (req.body.isActive) {
+        const { fileName, url, isActive } = req.body;
+        const dupCheck = await checkResumeUniqueness(Resume, url);
+
+        if (dupCheck.isDuplicate) {
+            return res.status(409).json({
+                success: false,
+                message: dupCheck.message
+            });
+        }
+
+        if (isActive) {
             await Resume.updateMany({}, { isActive: false });
         }
-        const newResume = new Resume(req.body);
+
+        const newResume = new Resume({
+            fileName,
+            url,
+            fileHash: dupCheck.fileHash,
+            isActive: Boolean(isActive)
+        });
         const saved = await newResume.save();
         res.status(201).json(saved);
     } catch (err) {
-        res.status(400).json({ message: err.message });
+        if (err.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "This resume file has already been uploaded."
+            });
+        }
+        res.status(400).json({ success: false, message: err.message });
     }
 });
 
@@ -352,17 +564,55 @@ app.get('/api/certifications', async (req, res) => {
 
 app.post('/api/certifications/save', requireAuth, async (req, res) => {
   try {
-    const { _id, ...certData } = req.body;
+    const { _id, title, issuer, issueDate, expirationDate, credentialId, verificationUrl, imageUrl, displayOrder, isActive } = req.body;
+    const targetId = (_id && mongoose.Types.ObjectId.isValid(_id)) ? _id : null;
+
+    const dupCheck = await checkCertificateUniqueness(
+      Certification,
+      { title, issuer, imageUrl, verificationUrl },
+      targetId
+    );
+
+    if (dupCheck.isDuplicate) {
+      return res.status(409).json({
+        success: false,
+        message: dupCheck.message,
+        field: dupCheck.field
+      });
+    }
+
+    const payload = {
+      title,
+      normalizedTitle: dupCheck.normalizedTitle,
+      issuer,
+      normalizedIssuer: dupCheck.normalizedIssuer,
+      issueDate,
+      expirationDate,
+      credentialId,
+      verificationUrl,
+      normalizedVerificationUrl: dupCheck.normalizedVerificationUrl,
+      imageUrl,
+      fileHash: dupCheck.fileHash,
+      displayOrder,
+      isActive
+    };
+
     let result;
-    if (_id && mongoose.Types.ObjectId.isValid(_id)) {
-      result = await Certification.findByIdAndUpdate(_id, certData, { new: true });
+    if (targetId) {
+      result = await Certification.findByIdAndUpdate(targetId, payload, { new: true, runValidators: true });
     } else {
-      result = new Certification(certData);
+      result = new Certification(payload);
       await result.save();
     }
     res.status(200).json(result);
   } catch (err) {
-    res.status(400).json({ message: "Operation failed", error: err.message });
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "This certificate file has already been uploaded."
+      });
+    }
+    res.status(400).json({ success: false, message: "Operation failed", error: err.message });
   }
 });
 
@@ -386,6 +636,128 @@ app.patch('/api/certifications/:id/status', requireAuth, async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 });
+
+// --- 8. EXPERIENCE ROUTES ---
+const validateExperienceData = (data) => {
+  const errors = [];
+  if (!data.jobTitle || typeof data.jobTitle !== 'string' || !data.jobTitle.trim()) {
+    errors.push("Job title is required.");
+  }
+  if (!data.company || typeof data.company !== 'string' || !data.company.trim()) {
+    errors.push("Company name is required.");
+  }
+  if (!data.startDate || typeof data.startDate !== 'string' || !data.startDate.trim()) {
+    errors.push("Start date is required.");
+  }
+  if (!data.currentlyWorking) {
+    if (!data.endDate || typeof data.endDate !== 'string' || !data.endDate.trim()) {
+      errors.push("End date is required when not currently working.");
+    } else if (data.startDate && data.endDate) {
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end < start) {
+        errors.push("End date cannot be earlier than start date.");
+      }
+    }
+  }
+  if (!data.description || typeof data.description !== 'string' || !data.description.trim()) {
+    errors.push("Description is required.");
+  }
+  return errors;
+};
+
+// GET /api/experiences (Public)
+app.get('/api/experiences', async (req, res) => {
+  try {
+    const experiences = await Experience.find().sort({
+      currentlyWorking: -1,
+      startDate: -1,
+      createdAt: -1
+    });
+    res.json(experiences);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching experiences", error: err.message });
+  }
+});
+
+// GET /api/experiences/:id (Public)
+app.get('/api/experiences/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid experience ID" });
+    }
+    const experience = await Experience.findById(req.params.id);
+    if (!experience) {
+      return res.status(404).json({ message: "Experience record not found" });
+    }
+    res.json(experience);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching experience details", error: err.message });
+  }
+});
+
+// Save Experience Handler
+const handleSaveExperience = async (req, res) => {
+  try {
+    const validationErrors = validateExperienceData(req.body);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ message: validationErrors.join(" ") });
+    }
+
+    const { _id, ...expData } = req.body;
+    let result;
+    if (_id && mongoose.Types.ObjectId.isValid(_id)) {
+      result = await Experience.findByIdAndUpdate(_id, expData, { new: true, runValidators: true });
+      if (!result) return res.status(404).json({ message: "Experience ID not found" });
+    } else {
+      result = new Experience(expData);
+      await result.save();
+    }
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(400).json({ message: "Operation failed", error: err.message });
+  }
+};
+
+app.post('/api/experiences/save', requireAuth, handleSaveExperience);
+app.post('/api/experiences', requireAuth, handleSaveExperience);
+
+// PUT /api/experiences/:id (Protected - Admin)
+app.put('/api/experiences/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid experience ID" });
+    }
+
+    const validationErrors = validateExperienceData(req.body);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ message: validationErrors.join(" ") });
+    }
+
+    const updated = await Experience.findByIdAndUpdate(id, req.body, { new: true, runValidators: true });
+    if (!updated) return res.status(404).json({ message: "Experience record not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ message: "Update failed", error: err.message });
+  }
+});
+
+// DELETE /api/experiences/:id (Protected - Admin)
+app.delete('/api/experiences/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid experience ID" });
+    }
+    const deleted = await Experience.findByIdAndDelete(id);
+    if (!deleted) return res.status(404).json({ message: "Experience record not found" });
+    res.json({ message: "Experience deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 
 // Resume download 
 // app.get('/api/resume/download', async (req, res) => {

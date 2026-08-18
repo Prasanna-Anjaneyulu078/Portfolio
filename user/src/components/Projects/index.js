@@ -1,148 +1,163 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import ProjectModal from './ProjectModal';
 import './Projects.css';
 
-const API_URL = 'https://prasanna-portfolio-admin.vercel.app/api/projects';
+const Projects = ({ projects = [] }) => {
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedProject, setSelectedProject] = useState(null);
 
-const Projects = () => {
-  const [filter, setFilter] = useState('All');
-  const [showAll, setShowAll] = useState(false);
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  if (!projects || projects.length === 0) {
+    return null;
+  }
 
-  const categories = ['All', 'Full Stack', 'Front End'];
+  // Ensure strictly max 3 featured projects are displayed
+  const featuredProjectsList = (projects || []).slice(0, 3);
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      setLoading(true);
-      try {
-        const response = await axios.get(API_URL, {
-          params: { category: filter === 'All' ? undefined : filter }
-        });
-        setProjects(response.data);
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProjects();
-  }, [filter]);
+  // Derive categories dynamically from featured projects plus 'All'
+  const categories = ['All', ...new Set(featuredProjectsList.map((p) => p.category).filter(Boolean))];
 
-  const displayedProjects = showAll ? projects : projects.slice(0, 3);
+  const filteredProjects = selectedCategory === 'All'
+    ? featuredProjectsList
+    : featuredProjectsList.filter((p) => p.category === selectedCategory);
 
-  const handleFilterChange = (cat) => {
-    setFilter(cat);
-    setShowAll(false);
+  const getTechStackBadges = (techStack) => {
+    let list = [];
+    if (Array.isArray(techStack)) {
+      list = techStack;
+    } else if (typeof techStack === 'string') {
+      list = techStack.split(',').map((t) => t.trim());
+    }
+    // Return max 3 to 5 tech badges per card requirement
+    return list.slice(0, 4);
   };
 
   return (
     <section id="projects" className="projects-section">
       <div className="container">
-        {/* Header Section */}
         <div className="projects-intro">
-          <div className="intro-text">
-            <h2 className="projects-title">Featured Work</h2>
-            <p className="projects-subtitle">
-              A curated selection of technical contributions, ranging from 
-              distributed systems to interactive user interfaces.
+          <div>
+            <div className="badge-emphasis">
+              Featured Work
+            </div>
+            <h2 className="section-title">
+              Featured Projects
+            </h2>
+            <p className="section-subtitle">
+              A selection of technical projects demonstrating practical software engineering and problem-solving skills.
             </p>
           </div>
-          <div className="filter-bar">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => handleFilterChange(cat)}
-                className={`filter-btn ${filter === cat ? 'active' : ''}`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Dynamic Content Area with Stable Height */}
-        <div className="projects-list-container">
-          {loading ? (
-            <div className="loading-container" role="status" aria-label="Loading projects">
-              <div className="loading-spinner"></div>
-              <p className="loading-text">Loading Projects...</p>
-            </div>
-          ) : projects.length > 0 ? (
-            <div className="projects-list">
-              {displayedProjects.map((project, idx) => (
-                <div key={project._id || idx} className="project-card animate-in">
-                  <div className="project-preview">
-                    <div className="category-badge">{project.category}</div>
-                    <img 
-                      src={project.image || project.imageUrl || null} 
-                      alt={project.title || 'Project Image'} 
-                      className="project-image"
-                      loading="lazy"
-                    />
-                    <div className="image-overlay"></div>
-                  </div>
-
-                  <div className="project-details">
-                    <div className="project-header">
-                      <h3 className="project-name">{project.title}</h3>
-                      <div className="project-stack-group">
-                        {Array.isArray(project.techStack) 
-                          ? project.techStack.map((item, i) => (
-                              <span key={i} className="project-stack-tag">{item}</span>
-                            ))
-                          : (project.techStack || project.stack)?.split(',').map((item, i) => (
-                              <span key={i} className="project-stack-tag">{item.trim()}</span>
-                            ))
-                        }
-                      </div>
-                    </div>
-
-                    <p className="project-desc">{project.description}</p>
-                    
-                    <div className="project-tech-section">
-                      <div className="project-tags">
-                        {project.tags?.map(tag => (
-                          <span key={tag} className="tag-item">{tag}</span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="project-card-actions">
-                      <a className="action-btn btn-code" href={project.codeUrl} target="_blank" rel="noopener noreferrer">
-                        <span className="material-symbols-outlined">code</span> Source
-                      </a>
-                      <a className="action-btn btn-demo" href={project.demoUrl} target="_blank" rel="noopener noreferrer">
-                        <span className="material-symbols-outlined">rocket_launch</span> Demo
-                      </a>
-                    </div>
-                  </div>
-                </div>
+          {categories.length > 2 && (
+            <div className="filter-bar">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`filter-btn ${selectedCategory === cat ? 'active' : ''}`}
+                >
+                  {cat}
+                </button>
               ))}
-            </div>
-          ) : (
-            <div className="no-projects">
-              <span className="material-symbols-outlined no-projects-icon">inventory_2</span>
-              <p>No projects found in the "{filter}" category.</p>
-              <button className="reset-filter-btn" onClick={() => setFilter('All')}>
-                View All Projects
-              </button>
             </div>
           )}
         </div>
 
-        {/* View All Button */}
-        {!loading && projects.length > 3 && (
-          <div className="view-all-container">
-            <button className="view-all-btn" onClick={() => setShowAll(!showAll)}>
-              {showAll ? 'Collapse' : 'View All Projects'}
-              <span className="material-symbols-outlined">
-                {showAll ? 'expand_less' : 'expand_more'}
-              </span>
-            </button>
-          </div>
-        )}
+        <div className="projects-grid">
+          {filteredProjects.map((project, idx) => {
+            const techBadges = getTechStackBadges(project.techStack);
+            const imageSrc = project.imageUrl || project.image;
+
+            return (
+              <div
+                key={project._id || idx}
+                className="project-card"
+                onClick={() => setSelectedProject(project)}
+              >
+                <div className="project-preview">
+                  <span className="category-badge">{project.category || 'Project'}</span>
+                  {imageSrc ? (
+                    <img
+                      src={imageSrc}
+                      alt={project.title || 'Project preview'}
+                      className="project-image"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="project-image-fallback">
+                      <span className="material-symbols-outlined">devices</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="project-details">
+                  <h3 className="project-name">{project.title}</h3>
+
+                  {techBadges.length > 0 && (
+                    <div className="project-tech-badges">
+                      {techBadges.map((tech, i) => (
+                        <span key={i} className="tech-badge">
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="project-desc-clamped">{project.description}</p>
+
+                  <div
+                    className="project-card-actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {project.codeUrl ? (
+                      <a
+                        className="action-btn btn-code"
+                        href={project.codeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span className="material-symbols-outlined">code</span> GitHub
+                      </a>
+                    ) : (
+                      <button
+                        className="action-btn btn-code"
+                        onClick={() => setSelectedProject(project)}
+                      >
+                        Details
+                      </button>
+                    )}
+
+                    {project.demoUrl ? (
+                      <a
+                        className="action-btn btn-demo"
+                        href={project.demoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span className="material-symbols-outlined">rocket_launch</span> Live Demo
+                      </a>
+                    ) : (
+                      <button
+                        className="action-btn btn-demo"
+                        onClick={() => setSelectedProject(project)}
+                      >
+                        View More
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Project Details Modal */}
+      {selectedProject && (
+        <ProjectModal
+          project={selectedProject}
+          onClose={() => setSelectedProject(null)}
+        />
+      )}
     </section>
   );
 };

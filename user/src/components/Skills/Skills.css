@@ -1,68 +1,44 @@
-
 .skills-section {
-  background-color: var(--bg-light);
+  background-color: var(--bg-main);
+  padding-top: 20px;
 }
 
-.skills-header {
-  text-align: center;
-  margin-bottom: 5rem;
+.skills-section .section-title-wrapper {
+  margin-bottom: 20px;
 }
 
-.skills-title {
-  font-size: 2.25rem;
-  font-weight: 800;
-  margin-bottom: 1rem;
-  letter-spacing: -0.02em;
-}
-
-.skills-subtitle {
-  color: var(--text-muted);
-  font-size: 1.125rem;
-  max-width: 36rem;
-  margin: 0 auto;
-}
-
-.skills-grid {
+.skills-dev-tools-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 5rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(1.15rem, 2.5vw, 1.65rem);
+  margin-bottom: clamp(1.75rem, 3.5vw, 2.5rem);
 }
 
 .skill-card {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 1.25rem;
-  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shadow-sm);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
 }
 
 .skill-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
   border-color: var(--primary);
-}
-
-.skill-card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.skill-icon {
-  padding: 0.625rem;
-  background-color: var(--primary-light);
-  color: var(--primary);
-  border-radius: 0.75rem;
-  display: flex;
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
 
 .skill-category-title {
-  font-size: 1.125rem;
+  font-size: var(--font-h3);
   font-weight: 800;
   color: var(--text-dark);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .skill-tags {
@@ -72,121 +48,109 @@
 }
 
 .skill-badge {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.15);
   padding: 0.35rem 0.75rem;
-  background-color: var(--bg-light);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-gray);
-  transition: all 0.2s;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-small);
+  font-weight: 600;
+  transition: var(--transition);
 }
 
 .skill-badge:hover {
-  background-color: white;
-  border-color: var(--primary);
-  color: var(--primary);
+  background-color: var(--primary);
+  color: #ffffff;
 }
 
-/* Coding Profiles Section */
+/* Coding Profiles Sub-section */
 .coding-profiles-container {
-  padding-top: 3rem;
-  border-top: 1px solid var(--border-accent);
+  background-color: #ffffff;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.coding-profiles-container:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .profiles-title {
-  font-size: 1.25rem;
+  font-size: var(--font-h3);
   font-weight: 800;
-  margin-bottom: 2rem;
-  text-align: center;
   color: var(--text-dark);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.profiles-grid {
+.profiles-grid-4col {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1.25rem;
+  gap: clamp(0.85rem, 2vw, 1.25rem);
 }
 
-.profile-link-card {
+.profile-item-card {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background-color: white;
-  border-radius: 1rem;
-  border: 1px solid var(--border-color);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--text-gray);
-  text-decoration: none;
-  position: relative;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(0.85rem, 2vw, 1.15rem);
+  background-color: var(--bg-light);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  gap: 0.75rem;
 }
 
-.profile-icon-wrapper {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background-color: white;
-  border-radius: 0.75rem; /* Replaced 50% with rounded square */
-  border: 1px solid var(--border-color);
-  padding: 0.5rem;
-  transition: all 0.3s ease;
-  overflow: hidden;
+.profile-item-card:hover {
+  border-color: var(--primary);
+  background-color: #ffffff;
+  transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
-}
-
-.profile-brand-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  opacity: 0.9;
-  transition: all 0.3s ease;
 }
 
 .profile-name {
   font-weight: 700;
-  font-size: 0.9375rem;
-}
-
-.open-icon {
-  margin-left: auto;
-  font-size: 1rem;
-  opacity: 0.2;
-  transition: opacity 0.3s ease;
-}
-
-.profile-link-card:hover {
-  border-color: var(--brand-color);
-  transform: translateY(-4px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04);
+  font-size: var(--font-body);
   color: var(--text-dark);
 }
 
-.profile-link-card:hover .profile-icon-wrapper {
-  transform: scale(1.05);
-  border-color: var(--brand-color);
-  background-color: var(--bg-light);
+.profile-view-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--font-small);
+  font-weight: 600;
+  color: var(--primary);
+  transition: var(--transition);
 }
 
-.profile-link-card:hover .profile-brand-img {
-  opacity: 1;
+.profile-view-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
-.profile-link-card:hover .open-icon {
-  opacity: 1;
-  color: var(--brand-color);
+.open-icon {
+  font-size: 1rem;
 }
 
-@media (max-width: 1200px) {
-  .skills-grid { grid-template-columns: repeat(2, 1fr); }
-  .profiles-grid { grid-template-columns: repeat(2, 1fr); }
+/* Responsive Layout */
+@media (max-width: 1024px) {
+  .profiles-grid-4col {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 640px) {
-  .skills-grid { grid-template-columns: 1fr; }
-  .profiles-grid { grid-template-columns: 1fr; }
-  .profile-link-card { padding: 0.625rem 0.875rem; }
+  .skills-dev-tools-grid {
+    grid-template-columns: 1fr;
+    gap: 1.15rem;
+  }
+
+  .profiles-grid-4col {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
 }

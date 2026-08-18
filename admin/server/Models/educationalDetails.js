@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const AcademicSchema = new mongoose.Schema({
-  id: { type: String, required: true }, // Keeping your client-side generated ID
+  id: { type: String, required: true },
   degree: { type: String, required: true, trim: true },
   institution: { type: String, required: true, trim: true },
   duration: { type: String, required: true },
@@ -9,11 +9,6 @@ const AcademicSchema = new mongoose.Schema({
 });
 
 const EducationSchema = new mongoose.Schema({
-  coreObjective: {
-    type: String,
-    required: true,
-    trim: true
-  },
   academic: [AcademicSchema]
 }, { timestamps: true });
 

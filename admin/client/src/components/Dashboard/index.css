@@ -1,8 +1,7 @@
-
 .dashboard-container {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: clamp(1.25rem, 2.5vw, 2rem);
   animation: dashboardFadeIn 0.5s ease-out;
 }
 
@@ -13,7 +12,7 @@
 
 .overview-hero {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  padding: 2.5rem;
+  padding: clamp(1.5rem, 3.5vw, 2.5rem);
   border-radius: var(--radius-xl);
   color: white;
   position: relative;
@@ -46,14 +45,14 @@
 }
 
 .hero-text h2 {
-  font-size: 1.75rem;
+  font-size: var(--font-admin-h1);
   font-weight: 900;
   margin-bottom: 0.5rem;
 }
 
 .hero-text p {
-  font-size: 1rem;
-  opacity: 0.7;
+  font-size: var(--font-admin-body);
+  opacity: 0.8;
 }
 
 .hero-profile-btn {
@@ -62,6 +61,7 @@
   padding: 0.75rem 1.25rem;
   border-radius: 0.75rem;
   color: white;
+  font-size: var(--font-admin-small);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -69,6 +69,7 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.2s;
   cursor: pointer;
+  width: fit-content;
 }
 
 .hero-profile-btn:hover {
@@ -92,26 +93,13 @@
 .stats-row {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 480px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.25rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .stats-row {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: clamp(0.85rem, 2vw, 1.25rem);
 }
 
 .stat-widget-btn {
   background: white;
-  padding: 1.5rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border-color);
   text-align: left;
@@ -145,19 +133,19 @@
 .widget-icon span { font-size: 1.5rem; }
 
 .widget-value {
-  font-size: 1.75rem;
+  font-size: var(--font-admin-h1);
   font-weight: 900;
   color: var(--slate-900);
 }
 
 .widget-label {
-  font-size: 0.875rem;
+  font-size: var(--font-admin-body);
   font-weight: 800;
   color: var(--slate-900);
 }
 
 .widget-sublabel {
-  font-size: 0.75rem;
+  font-size: var(--font-admin-small);
   color: var(--slate-400);
   font-weight: 600;
 }
@@ -166,7 +154,7 @@
   background: white;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
-  padding: 1.75rem;
+  padding: clamp(1.25rem, 2.5vw, 1.75rem);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -185,10 +173,10 @@
 }
 
 .header-info span { color: var(--primary); }
-.header-info h4 { font-size: 1.125rem; font-weight: 800; }
+.header-info h4 { font-size: var(--font-admin-h2); font-weight: 800; }
 
 .header-link-btn {
-  font-size: 0.8125rem;
+  font-size: var(--font-admin-small);
   font-weight: 700;
   color: var(--primary);
   cursor: pointer;
@@ -231,10 +219,10 @@
 }
 
 .preview-details { flex: 1; }
-.preview-details h5 { font-size: 0.9375rem; font-weight: 800; margin-bottom: 0.25rem; }
+.preview-details h5 { font-size: var(--font-admin-h3); font-weight: 800; margin-bottom: 0.25rem; }
 
 .mini-tag {
-  font-size: 0.65rem;
+  font-size: var(--font-admin-small);
   font-weight: 700;
   background: white;
   color: var(--slate-500);
@@ -261,13 +249,13 @@
 .group-label {
   display: flex;
   justify-content: space-between;
-  font-size: 0.875rem;
+  font-size: var(--font-admin-body);
   font-weight: 700;
   color: var(--slate-700);
 }
 
 .group-count {
-  font-size: 0.75rem;
+  font-size: var(--font-admin-small);
   color: var(--slate-400);
 }
 
@@ -301,8 +289,8 @@
 }
 
 .file-icon { color: #ef4444; font-size: 2rem !important; }
-.file-name { font-size: 0.875rem; font-weight: 700; color: var(--slate-900); }
-.file-date { font-size: 0.7rem; color: var(--slate-400); }
+.file-name { font-size: var(--font-admin-body); font-weight: 700; color: var(--slate-900); }
+.file-date { font-size: var(--font-admin-small); color: var(--slate-400); }
 
 .latest-edu {
   padding: 1rem;
@@ -311,8 +299,8 @@
   border: 1px solid #ddd6fe;
 }
 
-.edu-title { font-size: 0.875rem; font-weight: 800; color: #5b21b6; }
-.edu-inst { font-size: 0.75rem; color: #7c3aed; }
+.edu-title { font-size: var(--font-admin-body); font-weight: 800; color: #5b21b6; }
+.edu-inst { font-size: var(--font-admin-small); color: #7c3aed; }
 
 .btn-action-full {
   display: block;
@@ -322,7 +310,7 @@
   color: white;
   border-radius: 0.75rem;
   text-align: center;
-  font-size: 0.875rem;
+  font-size: var(--font-admin-body);
   font-weight: 700;
   transition: all 0.2s;
   cursor: pointer;

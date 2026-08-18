@@ -1,4 +1,3 @@
-
 :root {
   --primary: #135bec;
   --primary-hover: #0f4bc2;
@@ -21,7 +20,14 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
-  --font-inter: 'Inter', sans-serif;
+  --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Admin Fluid Typography Tokens (clamp) */
+  --font-admin-h1: clamp(1.4rem, 2.8vw, 2.15rem);
+  --font-admin-h2: clamp(1.15rem, 2.2vw, 1.6rem);
+  --font-admin-h3: clamp(0.975rem, 1.6vw, 1.25rem);
+  --font-admin-body: clamp(0.85rem, 1vw + 0.35rem, 0.95rem);
+  --font-admin-small: clamp(0.75rem, 0.8vw + 0.3rem, 0.825rem);
 }
 
 * {
@@ -30,12 +36,20 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+  color-scheme: light;
+}
+
 body {
   font-family: var(--font-inter);
   background-color: var(--bg-light);
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 button {
@@ -59,7 +73,8 @@ a {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {

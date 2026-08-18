@@ -1,36 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import React from 'react';
 import './Footer.css';
 
-const API_URL = 'hhttps://prasanna-portfolio-admin.vercel.app/api/user';
+const Footer = ({ userData = {}, codingProfiles = [] }) => {
+  const name = userData.name || 'Prasanna Anjaneyulu';
+  const role = userData.role || 'Software Engineer | Full Stack Developer';
 
-const Footer = () => {
-  const [name, setName] = useState('Prasanna Anjaneyulu'); // Fallback name
+  const formatUrl = (url) => {
+    if (!url) return '#';
+    return url.startsWith('http') ? url : `https://${url}`;
+  };
 
-  useEffect(() => {
-    const fetchName = async () => {
-      try {
-        const response = await axios.get(API_URL);
-        if (response.data && response.data.name) {
-          setName(response.data.name);
-        }
-      } catch (err) {
-        console.error("Footer fetch error:", err.message);
-        // On error, it keeps the default fallback name
-      }
-    };
-    fetchName();
-  }, []);
+  const leetcodeProfile = codingProfiles.find(
+    (p) => p.platform?.toLowerCase().includes('leetcode')
+  );
 
   return (
     <footer className="footer">
       <div className="container footer-content">
-        <p className="footer-text">
-          © {new Date().getFullYear()} <strong>{name}</strong>. 
-          Designed & Built with <span className="heart">MERN Stack</span>
-        </p>
+        <div className="footer-name">© {new Date().getFullYear()} {name}</div>
+        <div className="footer-title-sub">{role}</div>
+        <div className="footer-links">
+          {userData.githubUrl && (
+            <a href={formatUrl(userData.githubUrl)} target="_blank" rel="noopener noreferrer">
+              GitHub
+            </a>
+          )}
+          {userData.githubUrl && userData.linkedinUrl && <span className="footer-dot">•</span>}
+          {userData.linkedinUrl && (
+            <a href={formatUrl(userData.linkedinUrl)} target="_blank" rel="noopener noreferrer">
+              LinkedIn
+            </a>
+          )}
+          {leetcodeProfile && <span className="footer-dot">•</span>}
+          {leetcodeProfile && (
+            <a href={formatUrl(leetcodeProfile.url)} target="_blank" rel="noopener noreferrer">
+              LeetCode
+            </a>
+          )}
+          {userData.email && <span className="footer-dot">•</span>}
+          {userData.email && (
+            <a href={`mailto:${userData.email}`}>
+              Email
+            </a>
+          )}
+        </div>
       </div>
     </footer>
   );

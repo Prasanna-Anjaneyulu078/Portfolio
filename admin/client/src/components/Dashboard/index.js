@@ -2,7 +2,19 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './index.css';
 
-const API_BASE = 'https://prasanna-portfolio-admin.vercel.app/api';
+const PRIMARY_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
+const LOCAL_API = 'http://localhost:3002/api';
+
+const apiGet = async (endpoint) => {
+  try {
+    return await axios.get(`${PRIMARY_API}${endpoint}`);
+  } catch (err) {
+    if (!err.response || err.code === 'ERR_NETWORK') {
+      return await axios.get(`${LOCAL_API}${endpoint}`);
+    }
+    throw err;
+  }
+};
 
 const Dashboard = ({ onNavigate }) => {
   const [data, setData] = useState({
@@ -10,7 +22,8 @@ const Dashboard = ({ onNavigate }) => {
     projects: [],
     skillGroups: [],
     academic: [],
-    resumes: []
+    resumes: [],
+    certifications: []
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -18,12 +31,13 @@ const Dashboard = ({ onNavigate }) => {
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
-        const [userRes, projectRes, skillRes, eduRes, resumeRes] = await Promise.all([
-          axios.get(`${API_BASE}/user`),
-          axios.get(`${API_BASE}/projects`),
-          axios.get(`${API_BASE}/skill-groups`),
-          axios.get(`${API_BASE}/education`),
-          axios.get(`${API_BASE}/resumes`) 
+        const [userRes, projectRes, skillRes, eduRes, resumeRes, certRes] = await Promise.all([
+          apiGet('/user'),
+          apiGet('/projects'),
+          apiGet('/skill-groups'),
+          apiGet('/education'),
+          apiGet('/resumes'),
+          apiGet('/certifications')
         ]);
 
         setData({
@@ -31,7 +45,8 @@ const Dashboard = ({ onNavigate }) => {
           projects: projectRes.data || [],
           skillGroups: skillRes.data || [],
           academic: eduRes.data.academic || [],
-          resumes: resumeRes.data || [] 
+          resumes: resumeRes.data || [],
+          certifications: Array.isArray(certRes.data) ? certRes.data : []
         });
       } catch (err) {
         console.error("Dashboard Fetch Error:", err);
@@ -91,12 +106,12 @@ const Dashboard = ({ onNavigate }) => {
             subLabel="Core Stack"
           />
           <StatWidget 
-            icon="school" 
+            icon="workspace_premium" 
             label="Certifications" 
-            value={data.academic.length} 
+            value={data.certifications ? data.certifications.length : 0} 
             color="#6366f1" 
-            onClick={() => onNavigate('about')}
-            subLabel="Academic History"
+            onClick={() => onNavigate('certifications')}
+            subLabel="Verified Credentials"
           />
           <StatWidget 
             icon="description" 
@@ -195,7 +210,7 @@ const Dashboard = ({ onNavigate }) => {
                 <p className="edu-inst">{data.academic[0].institution}</p>
               </div>
             ) : <p className="empty-text">No education records found.</p>}
-            <button onClick={() => onNavigate('about')} className="btn-action-full secondary">Review Background</button>
+            <button onClick={() => onNavigate('education')} className="btn-action-full secondary">Manage Education</button>
           </div>
         </div>
       </div>
