@@ -100,6 +100,43 @@ app.get('/api/auth/verify', requireAuth, (req, res) => {
   res.json({ valid: true, email: req.admin.email });
 });
 
+// --- ONE-TIME ADMIN SETUP ENDPOINT ---
+// Securely creates the admin user in the database.
+// Protected by SETUP_SECRET env var — only works once if no admin exists.
+// Call via browser: GET /api/auth/setup?secret=YOUR_SETUP_SECRET
+app.get('/api/auth/setup', async (req, res) => {
+  try {
+    const setupSecret = process.env.SETUP_SECRET;
+    if (!setupSecret) {
+      return res.status(403).json({ message: 'Setup is disabled (SETUP_SECRET not configured).' });
+    }
+    if (req.query.secret !== setupSecret) {
+      return res.status(403).json({ message: 'Invalid setup secret.' });
+    }
+
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    if (!email || !password) {
+      return res.status(500).json({ message: 'ADMIN_EMAIL and ADMIN_PASSWORD env vars are required.' });
+    }
+
+    const existing = await Admin.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      // Update the hash (idempotent — safe to re-run)
+      const passwordHash = await bcrypt.hash(password, 12);
+      existing.passwordHash = passwordHash;
+      await existing.save();
+      return res.json({ message: `Admin updated successfully: ${email}` });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await Admin.create({ email: email.toLowerCase(), passwordHash });
+    return res.json({ message: `Admin created successfully: ${email}. You can now log in.` });
+  } catch (err) {
+    res.status(500).json({ message: 'Setup failed', error: err.message });
+  }
+});
+
 // --- 1. PERSONAL DETAILS ROUTES ---
 app.get('/api/user', async (req, res) => {
   try {
