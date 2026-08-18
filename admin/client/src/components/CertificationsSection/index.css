@@ -1,0 +1,87 @@
+/* Certifications Specific Styling */
+.cert-dates-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cert-date-text {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--slate-800);
+}
+
+.cert-id-text {
+  font-size: 0.75rem;
+  color: var(--slate-400);
+  font-weight: 600;
+}
+
+.cert-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.cert-status-badge.active {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+
+.cert-status-badge.active:hover {
+  background-color: #dcfce7;
+}
+
+.cert-status-badge.inactive {
+  background-color: #f8fafc;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+}
+
+.cert-status-badge.inactive:hover {
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+
+.cert-status-badge span {
+  font-size: 1rem !important;
+}
+
+.tr-disabled {
+  opacity: 0.6;
+}
+
+.text-muted-small {
+  color: var(--slate-300);
+  font-size: 0.875rem;
+}
+
+.checkbox-field-wrapper {
+  justify-content: flex-end;
+  padding-top: 1.5rem;
+}
+
+.checkbox-label-styled {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--slate-800);
+  cursor: pointer;
+}
+
+.checkbox-label-styled input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "portfolio-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unified Portfolio Monorepo containing User Public Website (React + Vite), Admin Dashboard (React + Vite), and Shared Backend API (Express)",
+  "scripts": {
+    "user": "npm --prefix user run dev",
+    "admin": "npm --prefix admin/client run dev",
+    "server": "npm --prefix admin/server start",
+    "user:build": "npm --prefix user run build",
+    "admin:build": "npm --prefix admin/client run build",
+    "user:preview": "npm --prefix user run preview",
+    "admin:preview": "npm --prefix admin/client run preview"
+  }
+}

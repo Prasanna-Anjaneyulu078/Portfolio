@@ -1,0 +1,132 @@
+
+.about-section {
+  background-color: white;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.section-header h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.icon-primary {
+  color: var(--primary);
+  font-size: 2rem;
+}
+
+.about-bio {
+  color: var(--text-gray);
+  line-height: 1.8;
+  font-size: 1.0625rem;
+  margin-bottom: 2.5rem;
+}
+
+.objective-card {
+  padding: 1.75rem;
+  background-color: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+}
+
+.objective-text {
+  font-size: 1rem;
+  color: var(--text-gray);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.education-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-bottom: 3rem;
+}
+
+.edu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.edu-main h4 {
+  font-weight: 700;
+  font-size: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.edu-main p {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
+.edu-meta {
+  text-align: right;
+}
+
+.year {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.grade {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.divider {
+  height: 1px;
+  background-color: var(--border-color);
+}
+
+.learning-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.tag {
+  padding: 0.5rem 1rem;
+  background-color: white;
+  border: 1px solid var(--border-accent);
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-gray);
+  transition: all 0.2s;
+}
+
+.tag:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+    gap: 4rem;
+  }
+}

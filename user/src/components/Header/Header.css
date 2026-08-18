@@ -1,0 +1,161 @@
+
+.header {
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid transparent;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.header-scrolled {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-bottom-color: var(--border-color);
+  box-shadow: 0 4px 15px -10px rgba(0, 0, 0, 0.1);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: transform 0.2s ease;
+  text-decoration: none;
+}
+
+.logo:active {
+  transform: scale(0.97);
+}
+
+.logo-profile-wrapper {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--primary-light);
+  display: flex;
+}
+
+.logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: 100% 100%;
+}
+
+.logo-text {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-dark);
+}
+
+.nav-desktop {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-gray);
+  transition: all 0.3s ease;
+  position: relative;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.nav-link:hover {
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.nav-link.active {
+  color: var(--primary);
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0.25rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  height: 2px;
+  background-color: var(--primary);
+  border-radius: 2px;
+  animation: growLine 0.3s ease forwards;
+}
+
+@keyframes growLine {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.menu-toggle {
+  display: none;
+  padding: 0.5rem;
+  color: var(--text-dark);
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.menu-toggle:hover {
+  background-color: var(--bg-light);
+}
+
+.nav-mobile {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  width: 100%;
+  height: 0;
+  background-color: white;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  gap: 0.5rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-mobile.open {
+  height: auto;
+  padding: 1.5rem;
+  opacity: 1;
+  pointer-events: all;
+}
+
+.mobile-link {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-gray);
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s;
+}
+
+.mobile-link:hover, .mobile-link.active {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  padding-left: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .nav-desktop {
+    display: none;
+  }
+  .menu-toggle {
+    display: flex;
+  }
+}

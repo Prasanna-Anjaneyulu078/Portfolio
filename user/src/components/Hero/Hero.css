@@ -1,0 +1,199 @@
+
+.hero-section {
+  background-color: var(--bg-light);
+  min-height: 500px; /* Further reduced height */
+  display: flex;
+  align-items: center;
+  padding: 2rem 0;
+}
+
+.hero-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4rem;
+  justify-content: space-between;
+}
+
+.hero-content {
+  flex: 1;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  background-color: white;
+  color: var(--primary);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+}
+
+.hero-title {
+  font-size: 3.5rem; /* Slightly reduced */
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 1rem;
+  letter-spacing: -0.04em;
+  color: var(--text-dark);
+}
+
+.hero-subtitle {
+  font-size: 1.5rem;
+  color: var(--text-gray);
+  margin-bottom: 1.25rem;
+  font-weight: 500;
+}
+
+.separator {
+  color: var(--primary);
+  opacity: 0.5;
+  margin: 0 0.5rem;
+}
+
+.hero-description {
+  font-size: 1.0625rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 520px;
+  margin-bottom: 2rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  height: 3rem; /* Slightly reduced */
+  padding: 0 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-2px);
+}
+
+.btn-outline {
+  border: 1px solid var(--border-accent);
+  background-color: white;
+  color: var(--text-dark);
+}
+
+.btn-outline:hover {
+  background-color: var(--bg-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.social-links {
+  display: flex;
+  align-items: center; /* Center vertically */
+  justify-content: flex-start; /* Start on desktop */
+  gap: 1rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-accent);
+}
+
+.social-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.icon-wrapper {
+  width: 42px; /* Fixed dimensions for perfect circles */
+  height: 42px;
+  background-color: white;
+  border: 1px solid var(--border-accent);
+  border-radius: 50%; /* Make them circular */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.icon-wrapper svg {
+  display: block;
+  margin: 0 auto; /* Extra centering safety */
+}
+
+.social-item:hover .icon-wrapper {
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.hero-image-wrapper {
+  flex: 0 0 320px; /* Reduced from 420px */
+}
+
+.hero-image {
+  width: 100%;
+  aspect-ratio: 1/1; 
+  background-size: 100% 100%;
+  background-position: center;
+  border-radius: 50%; 
+  border: 6px solid white;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+  background-color: var(--bg-light);
+  /* background-image: url('https://res.cloudinary.com/dme0vm9fj/image/upload/v1766843138/VenkatImage_eczgon.jpg') */
+}
+
+@media (max-width: 1024px) {
+  .hero-container { gap: 2rem; }
+  .hero-image-wrapper { flex: 0 0 280px; }
+  .hero-title { font-size: 3rem; }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    min-height: auto;
+    padding: 3rem 0;
+  }
+  .hero-container {
+    flex-direction: column;
+    text-align: center;
+  }
+  .hero-image-wrapper {
+    order: -1;
+    width: 100%;
+    max-width: 240px;
+    margin-bottom: 2rem;
+  }
+  .hero-description { margin: 0 auto 2rem; }
+  .hero-actions { justify-content: center; }
+  .social-links { justify-content: center; }
+}
