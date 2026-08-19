@@ -14,13 +14,20 @@ const CodingProfiles = ({ codingProfiles = [], loading = false, error = false })
     return codingProfiles.filter((p) => p && p.platform);
   }, [codingProfiles]);
 
+  const gridStyle = React.useMemo(() => {
+    const count = validProfiles.length || 5;
+    return {
+      gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))`,
+    };
+  }, [validProfiles.length]);
+
   // 1. Loading State (Minimal Skeleton Cards)
   if (loading) {
     return (
       <section id="coding-profiles" className="coding-profiles-section">
         <div className="container">
           <SectionHeader title="Coding Profiles" />
-          <div className="profiles-grid-5col">
+          <div className="profiles-grid-5col" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
             {[1, 2, 3, 4, 5].map((n) => (
               <div key={n} className="profile-item-card skeleton-card">
                 <div className="skeleton-line skeleton-platform skeleton-pulse" />
@@ -65,8 +72,8 @@ const CodingProfiles = ({ codingProfiles = [], loading = false, error = false })
       <div className="container">
         <SectionHeader title="Coding Profiles" />
 
-        {/* Minimal Clickable 5-Column Grid for Coding Profiles */}
-        <div className="profiles-grid-5col">
+        {/* Minimal Clickable 1x5 Desktop Grid for Coding Profiles */}
+        <div className="profiles-grid-5col" style={gridStyle}>
           {validProfiles.map((profile, idx) => {
             const formattedUrl = formatUrl(profile.url);
             const platformName =

@@ -28,6 +28,13 @@ const Skills = ({
     return codingProfiles.filter((p) => p && p.platform);
   }, [codingProfiles]);
 
+  const profileGridStyle = React.useMemo(() => {
+    const count = validProfiles.length || 5;
+    return {
+      gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))`,
+    };
+  }, [validProfiles.length]);
+
   // If no categories and no profiles, return empty state or hide
   const hasNoCategories = validCategories.length === 0;
   const hasNoProfiles = validProfiles.length === 0;
@@ -100,7 +107,7 @@ const Skills = ({
           <h3 className="skills-subsection-title">Coding Profiles</h3>
 
           {loading ? (
-            <div className="profiles-grid-5col">
+            <div className="profiles-grid-5col" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <div key={n} className="profile-item-card skeleton-card">
                   <div className="skeleton-line skeleton-platform skeleton-pulse" />
@@ -116,7 +123,7 @@ const Skills = ({
               <p className="skills-status-message">No coding profiles available.</p>
             </div>
           ) : (
-            <div className="profiles-grid-5col">
+            <div className="profiles-grid-5col" style={profileGridStyle}>
               {validProfiles.map((profile, idx) => {
                 const formattedUrl = formatUrl(profile.url);
                 const platformName =

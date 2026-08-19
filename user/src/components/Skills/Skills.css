@@ -84,7 +84,7 @@
 .profiles-grid-2col {
   display: grid !important;
   grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: clamp(0.75rem, 1.5vw, 1.25rem);
+  gap: clamp(0.5rem, 1vw, 0.85rem);
   align-items: stretch;
   width: 100%;
 }
@@ -94,7 +94,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: clamp(1.25rem, 2vw, 1.75rem) 1rem;
+  padding: clamp(1rem, 1.5vw, 1.35rem) clamp(0.35rem, 0.8vw, 0.75rem);
   background-color: #ffffff;
   border: 1px solid var(--border-accent, #e2e8f0);
   border-radius: var(--radius-md, 14px);
@@ -104,7 +104,8 @@
   color: var(--text-dark, #0f172a);
   box-sizing: border-box;
   min-width: 0;
-  min-height: 84px;
+  width: 100%;
+  min-height: 72px;
   cursor: pointer;
 }
 
@@ -129,12 +130,13 @@
 
 .profile-name {
   font-weight: 800;
-  font-size: clamp(0.95rem, 1.1vw, 1.1rem);
+  font-size: clamp(0.85rem, 1vw, 1.05rem);
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  max-width: 100%;
   transition: color 0.2s ease;
 }
 
