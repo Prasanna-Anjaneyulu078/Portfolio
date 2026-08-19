@@ -7,23 +7,34 @@ const formatUrl = (url) => {
   return url.startsWith('http') ? url : `https://${url}`;
 };
 
+const getPlatformIcon = (platform, customIcon) => {
+  if (customIcon && customIcon !== 'code') return customIcon;
+  const p = (platform || '').toLowerCase().replace(/[\s_]+/g, '');
+  if (p.includes('leetcode')) return 'code';
+  if (p.includes('codechef')) return 'terminal';
+  if (p.includes('geeks') || p.includes('gfg') || p.includes('greeks')) return 'code_blocks';
+  if (p.includes('codeforces')) return 'terminal';
+  if (p.includes('hackerrank')) return 'integration_instructions';
+  return customIcon || 'code';
+};
+
 const CodingProfiles = ({ codingProfiles = [], loading = false, error = false }) => {
-  // Filter valid profiles from database that have platform name and url
+  // Filter valid profiles from database
   const validProfiles = React.useMemo(() => {
     if (!Array.isArray(codingProfiles)) return [];
     return codingProfiles.filter(
-      (p) => p && p.platform && p.url && p.url.trim().length > 0 && p.url !== '#'
+      (p) => p && p.platform
     );
   }, [codingProfiles]);
 
-  // 1. Loading State (Skeleton 2x2 Grid Cards)
+  // 1. Loading State (Skeleton 5-Card Grid)
   if (loading) {
     return (
       <section id="coding-profiles" className="coding-profiles-section">
         <div className="container">
           <SectionHeader title="Coding Profiles" />
-          <div className="profiles-grid-2col">
-            {[1, 2, 3, 4].map((n) => (
+          <div className="profiles-grid-5col">
+            {[1, 2, 3, 4, 5].map((n) => (
               <div key={n} className="profile-item-card skeleton-card">
                 <div className="skeleton-line skeleton-platform skeleton-pulse" />
                 <div className="skeleton-line skeleton-desc skeleton-pulse" />
@@ -69,15 +80,20 @@ const CodingProfiles = ({ codingProfiles = [], loading = false, error = false })
       <div className="container">
         <SectionHeader title="Coding Profiles" />
 
-        {/* Dynamic 2-Column Desktop Grid for Coding Profiles */}
-        <div className="profiles-grid-2col">
+        {/* 5-Column Desktop Grid for Coding Profiles */}
+        <div className="profiles-grid-5col">
           {validProfiles.map((profile, idx) => {
             const formattedUrl = formatUrl(profile.url);
+            const platformName = profile.platform === 'GreeksForGreeks' ? 'GeeksForGeeks' : profile.platform;
+            const iconName = getPlatformIcon(profile.platform, profile.icon);
 
             return (
               <div key={profile._id || idx} className="profile-item-card">
                 <div className="profile-card-header">
-                  <span className="profile-name">{profile.platform}</span>
+                  <span className="material-symbols-outlined profile-icon" aria-hidden="true">
+                    {iconName}
+                  </span>
+                  <span className="profile-name">{platformName}</span>
                 </div>
 
                 {profile.description && (
@@ -90,7 +106,7 @@ const CodingProfiles = ({ codingProfiles = [], loading = false, error = false })
                     target="_blank"
                     rel="noopener noreferrer"
                     className="profile-view-link"
-                    aria-label={`View ${profile.platform} profile`}
+                    aria-label={`View ${platformName} profile`}
                   >
                     View Profile ↗
                   </a>

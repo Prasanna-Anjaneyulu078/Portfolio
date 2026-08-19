@@ -7,6 +7,17 @@ const formatUrl = (url) => {
   return url.startsWith('http') ? url : `https://${url}`;
 };
 
+const getPlatformIcon = (platform, customIcon) => {
+  if (customIcon && customIcon !== 'code') return customIcon;
+  const p = (platform || '').toLowerCase().replace(/[\s_]+/g, '');
+  if (p.includes('leetcode')) return 'code';
+  if (p.includes('codechef')) return 'terminal';
+  if (p.includes('geeks') || p.includes('gfg') || p.includes('greeks')) return 'code_blocks';
+  if (p.includes('codeforces')) return 'terminal';
+  if (p.includes('hackerrank')) return 'integration_instructions';
+  return customIcon || 'code';
+};
+
 const Skills = ({
   skillCategories = [],
   codingProfiles = [],
@@ -26,7 +37,7 @@ const Skills = ({
   const validProfiles = React.useMemo(() => {
     if (!Array.isArray(codingProfiles)) return [];
     return codingProfiles.filter(
-      (p) => p && p.platform && p.url && p.url.trim().length > 0 && p.url !== '#'
+      (p) => p && p.platform
     );
   }, [codingProfiles]);
 
@@ -102,8 +113,8 @@ const Skills = ({
           <h3 className="skills-subsection-title">Coding Profiles</h3>
 
           {loading ? (
-            <div className="profiles-grid-1x4">
-              {[1, 2, 3, 4].map((n) => (
+            <div className="profiles-grid-5col">
+              {[1, 2, 3, 4, 5].map((n) => (
                 <div key={n} className="profile-item-card skeleton-card">
                   <div className="skeleton-line skeleton-platform skeleton-pulse" />
                   <div className="skeleton-line skeleton-desc skeleton-pulse" />
@@ -120,14 +131,19 @@ const Skills = ({
               <p className="skills-status-message">No coding profiles available.</p>
             </div>
           ) : (
-            <div className="profiles-grid-1x4">
+            <div className="profiles-grid-5col">
               {validProfiles.map((profile, idx) => {
                 const formattedUrl = formatUrl(profile.url);
+                const platformName = profile.platform === 'GreeksForGreeks' ? 'GeeksForGeeks' : profile.platform;
+                const iconName = getPlatformIcon(profile.platform, profile.icon);
 
                 return (
                   <div key={profile._id || idx} className="profile-item-card">
                     <div className="profile-card-header">
-                      <span className="profile-name">{profile.platform}</span>
+                      <span className="material-symbols-outlined profile-icon" aria-hidden="true">
+                        {iconName}
+                      </span>
+                      <span className="profile-name">{platformName}</span>
                     </div>
 
                     {profile.description && (
@@ -140,7 +156,7 @@ const Skills = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="profile-view-link"
-                        aria-label={`View ${profile.platform} profile`}
+                        aria-label={`View ${platformName} profile`}
                       >
                         View Profile ↗
                       </a>
