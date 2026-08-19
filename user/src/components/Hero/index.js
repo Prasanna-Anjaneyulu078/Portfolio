@@ -3,8 +3,7 @@ import axios from 'axios';
 import { scrollToProjects } from '../../utils/scrollUtils';
 import './Hero.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
-const DOWNLOAD_URL = `${API_BASE_URL}/resume/download`;
+import { ENDPOINTS, resolveAssetUrl } from '../../config/api';
 
 const Hero = ({ userData = {}, educationData = {}, codingProfiles = [] }) => {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -17,7 +16,7 @@ const Hero = ({ userData = {}, educationData = {}, codingProfiles = [] }) => {
 
     try {
       const response = await axios({
-        url: DOWNLOAD_URL,
+        url: ENDPOINTS.RESUME_DOWNLOAD,
         method: 'GET',
         responseType: 'blob',
       });
@@ -184,7 +183,7 @@ const Hero = ({ userData = {}, educationData = {}, codingProfiles = [] }) => {
             <div className="home-image-container">
               {userData.avatarUrl ? (
                 <img
-                  src={userData.avatarUrl}
+                  src={resolveAssetUrl(userData.avatarUrl)}
                   alt={userData.name || 'User Avatar'}
                   className="home-image"
                 />

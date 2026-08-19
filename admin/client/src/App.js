@@ -12,6 +12,7 @@ import ExperienceSection from './components/ExperienceSection';
 import ResumeSection from './components/ResumeSection';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
+import { API_BASE_URL } from './config/api';
 import './index.css';
 import './App.css';
 
@@ -41,16 +42,10 @@ const EMPTY_STATE = {
   resumes: []
 };
 
-const PRIMARY_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
-const LOCAL_API = 'http://localhost:3002/api';
+const PRIMARY_API = API_BASE_URL;
 
 const apiGet = async (endpoint) => {
-  try {
-    return await axios.get(`${PRIMARY_API}${endpoint}`);
-  } catch (err) {
-    if (!err.response) return await axios.get(`${LOCAL_API}${endpoint}`);
-    throw err;
-  }
+  return await axios.get(`${PRIMARY_API}${endpoint}`);
 };
 
 const App = () => {

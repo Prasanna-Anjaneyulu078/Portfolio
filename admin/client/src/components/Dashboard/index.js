@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './index.css';
 
-const PRIMARY_API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
-const LOCAL_API = 'http://localhost:3002/api';
+import { API_BASE_URL } from '../../config/api';
+
+const PRIMARY_API = API_BASE_URL;
 
 const apiGet = async (endpoint) => {
   try {

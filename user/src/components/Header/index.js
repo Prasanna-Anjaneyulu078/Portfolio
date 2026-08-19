@@ -13,6 +13,8 @@ const MASTER_NAV_ITEMS = [
   { id: 'contact', name: 'Contact', href: '#contact' },
 ];
 
+import { resolveAssetUrl } from '../../config/api';
+
 const Header = ({ visibleSections = [], userData = {} }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -68,7 +70,7 @@ const Header = ({ visibleSections = [], userData = {} }) => {
           <div className="logo-profile-wrapper">
             {userData.avatarUrl ? (
               <img
-                src={userData.avatarUrl}
+                src={resolveAssetUrl(userData.avatarUrl)}
                 alt={userData.name || 'User'}
                 className="logo-img"
                 loading="lazy"

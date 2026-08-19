@@ -4,8 +4,9 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const PRIMARY_API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/certifications`;
-const LOCAL_API_URL = 'http://localhost:3002/api/certifications';
+import { API_BASE_URL } from '../../config/api';
+
+const PRIMARY_API_URL = `${API_BASE_URL}/certifications`;
 
 const apiCall = async (method, endpoint = '', data = null) => {
   try {

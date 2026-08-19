@@ -4,7 +4,9 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/user`;
+import { API_BASE_URL } from '../../config/api';
+
+const API_URL = `${API_BASE_URL}/user`;
 
 const PersonalDetails = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);

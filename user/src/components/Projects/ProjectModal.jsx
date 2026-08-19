@@ -1,4 +1,5 @@
 import React from 'react';
+import { resolveAssetUrl } from '../../config/api';
 
 const ProjectModal = ({ project, onClose }) => {
   if (!project) return null;
@@ -25,7 +26,7 @@ const ProjectModal = ({ project, onClose }) => {
         <div className="modal-header-img">
           {project.imageUrl || project.image ? (
             <img
-              src={project.imageUrl || project.image}
+              src={resolveAssetUrl(project.imageUrl || project.image)}
               alt={project.title}
               className="modal-img"
             />

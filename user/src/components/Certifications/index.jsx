@@ -7,19 +7,10 @@ const formatUrl = (url) => {
   return url.startsWith('http') ? url : `https://${url}`;
 };
 
+import { resolveAssetUrl } from '../../config/api';
+
 const resolveFileUrl = (urlStr) => {
-  if (!urlStr || typeof urlStr !== 'string') return '';
-  const trimmed = urlStr.trim();
-  if (!trimmed) return '';
-
-  if (trimmed.startsWith('data:')) return trimmed;
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-
-  const apiBase = import.meta.env.VITE_API_BASE_URL
-    ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '')
-    : 'http://localhost:3002';
-  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return `${apiBase}${cleanPath}`;
+  return resolveAssetUrl(urlStr);
 };
 
 const detectFileType = (urlStr) => {

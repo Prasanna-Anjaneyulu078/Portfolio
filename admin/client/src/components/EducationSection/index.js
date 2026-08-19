@@ -3,7 +3,9 @@ import axios from 'axios';
 import Modal from '../Modal';
 import './index.css';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
+import { API_BASE_URL } from '../../config/api';
+
+const API_URL = API_BASE_URL;
 
 const EducationSection = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);

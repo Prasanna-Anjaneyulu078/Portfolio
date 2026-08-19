@@ -4,8 +4,9 @@ import Modal from '../Modal';
 import { fileToBase64 } from '../../utils/fileHelpers';
 import './index.css';
 
-const PRIMARY_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
-const LOCAL_API_URL = 'http://localhost:3002/api';
+import { API_BASE_URL } from '../../config/api';
+
+const PRIMARY_API_URL = API_BASE_URL;
 
 const CATEGORIES = ['Full Stack', 'Frontend', 'Backend', 'AI / ML', 'Other'];
 

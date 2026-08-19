@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import SectionHeader from '../SectionHeader';
 import ProjectModal from './ProjectModal';
 import { scrollToProjects } from '../../utils/scrollUtils';
+import { resolveAssetUrl } from '../../config/api';
 import './Projects.css';
 
 const Projects = ({ projects = [], loading = false, error = false }) => {
@@ -240,7 +241,7 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
                 <div className="card-visual-frame">
                   {proj.imageUrl ? (
                     <img
-                      src={proj.imageUrl}
+                      src={resolveAssetUrl(proj.imageUrl)}
                       alt={proj.title}
                       className="visual-image-preview"
                       loading="lazy"
@@ -254,7 +255,7 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
                           <span className="dot green" />
                         </div>
                         <div className="browser-address">
-                          {proj.demoUrl || 'https://localhost:3000'}
+                          {proj.demoUrl || 'https://demo.project.com'}
                         </div>
                       </div>
                       <div className="browser-viewport-content">

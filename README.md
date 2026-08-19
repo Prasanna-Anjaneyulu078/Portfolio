@@ -6,6 +6,16 @@ The **Portfolio Management System** is a full-stack platform designed to manage 
 
 ---
 
+## 🌐 Live Production Deployments
+
+| Component | Hosting Platform | Live URL |
+| :--- | :--- | :--- |
+| **User Portfolio (Public Website)** | Cloudflare Pages | [https://prasanna.pages.dev](https://prasanna.pages.dev) |
+| **Admin Dashboard (Control Panel)** | Cloudflare Pages | [https://admin-prasanna.pages.dev](https://admin-prasanna.pages.dev) |
+| **Backend REST API Server** | Render | [https://prasanna-dev-api.onrender.com](https://prasanna-dev-api.onrender.com) |
+
+---
+
 ## Overview
 
 The platform operates as a cohesive multi-tier system with an administrative dashboard, a shared REST API server, a MongoDB database, and a public portfolio application:

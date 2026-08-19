@@ -12,7 +12,7 @@ import Footer from './components/Footer';
 import Loading from './components/Loading';
 import './App.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
+import { ENDPOINTS, resolveAssetUrl } from './config/api';
 
 const App = () => {
   const [loading, setLoading] = useState(true);
@@ -44,13 +44,13 @@ const App = () => {
           expRes,
           certsRes,
         ] = await Promise.allSettled([
-          axios.get(`${API_BASE_URL}/user`),
-          axios.get(`${API_BASE_URL}/education`),
-          axios.get(`${API_BASE_URL}/skill-groups`),
-          axios.get(`${API_BASE_URL}/profiles`),
-          axios.get(`${API_BASE_URL}/projects`),
-          axios.get(`${API_BASE_URL}/experiences`),
-          axios.get(`${API_BASE_URL}/certifications`),
+          axios.get(ENDPOINTS.USER),
+          axios.get(ENDPOINTS.EDUCATION),
+          axios.get(ENDPOINTS.SKILLS),
+          axios.get(ENDPOINTS.PROFILES),
+          axios.get(ENDPOINTS.PROJECTS),
+          axios.get(ENDPOINTS.EXPERIENCES),
+          axios.get(ENDPOINTS.CERTIFICATIONS),
         ]);
 
         if (userRes.status === 'fulfilled' && userRes.value.data) {
@@ -61,7 +61,7 @@ const App = () => {
             document.title = `${userRes.value.data.name} Portfolio`;
           }
           if (userRes.value.data.avatarUrl) {
-            updateFavicon(userRes.value.data.avatarUrl);
+            updateFavicon(resolveAssetUrl(userRes.value.data.avatarUrl));
           }
         }
 

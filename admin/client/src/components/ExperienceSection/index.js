@@ -3,8 +3,9 @@ import axios from 'axios';
 import Modal from '../Modal';
 import './index.css';
 
-const PRIMARY_API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/experiences`;
-const LOCAL_API_URL = 'http://localhost:3002/api/experiences';
+import { API_BASE_URL } from '../../config/api';
+
+const PRIMARY_API_URL = `${API_BASE_URL}/experiences`;
 
 const apiCall = async (method, endpoint = '', data = null) => {
   try {

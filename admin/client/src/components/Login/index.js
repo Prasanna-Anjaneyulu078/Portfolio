@@ -3,8 +3,9 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import './index.css';
 
-const PRIMARY_API = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/auth/login`;
-const LOCAL_API = 'http://localhost:3002/api/auth/login';
+import { API_BASE_URL } from '../../config/api';
+
+const PRIMARY_API = `${API_BASE_URL}/auth/login`;
 
 const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -24,17 +25,7 @@ const Login = ({ onLogin }) => {
 
     setIsLoading(true);
     try {
-      let res;
-      try {
-        res = await axios.post(PRIMARY_API, { email, password });
-      } catch (primaryErr) {
-        if (!primaryErr.response) {
-          // Network error — try local
-          res = await axios.post(LOCAL_API, { email, password });
-        } else {
-          throw primaryErr;
-        }
-      }
+      const res = await axios.post(PRIMARY_API, { email, password });
       const { token } = res.data;
       Cookies.set('adminToken', token, { expires: 1, sameSite: 'strict' });
       onLogin(token);

@@ -3,7 +3,9 @@ import axios from 'axios';
 import Modal from '../Modal';
 import './index.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
+import { API_BASE_URL } from '../../config/api';
+
+const API_BASE = API_BASE_URL;
 
 const PLATFORM_ICONS = {
   leetcode: 'code',

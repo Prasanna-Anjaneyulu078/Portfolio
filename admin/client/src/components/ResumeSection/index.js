@@ -4,7 +4,9 @@ import Modal from '../Modal';
 import { fileToBase64, getPdfUrl } from '../../utils/fileHelpers';
 import './index.css';
 
-const API_BASE = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api'}/resumes`;
+import { API_BASE_URL } from '../../config/api';
+
+const API_BASE = `${API_BASE_URL}/resumes`;
 
 const ResumeSection = () => {
   const [resumes, setResumes] = useState([]);
