@@ -881,11 +881,11 @@ app.get('/api/resume/download', async (req, res) => {
   }
 });
 
-// For local development: start the server
-if (process.env.NODE_ENV !== 'production' && require.main === module) {
+// Start server when run directly (Render, Railway, Heroku, local dev)
+if (require.main === module) {
     const http = require('http');
     http.createServer(app).listen(PORT, () =>
-        console.log(`Server running at http://localhost:${PORT}`)
+        console.log(`Server running on port ${PORT}`)
     );
 }
 
