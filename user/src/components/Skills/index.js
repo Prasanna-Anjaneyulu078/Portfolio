@@ -110,7 +110,8 @@ const Skills = ({
             <div className="profiles-grid-5col" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <div key={n} className="profile-item-card skeleton-card">
-                  <div className="skeleton-line skeleton-platform skeleton-pulse" />
+                  <div className="skeleton-line skeleton-platform skeleton-pulse" style={{ width: '70%', height: '1rem', marginBottom: '0.5rem' }} />
+                  <div className="skeleton-line skeleton-pulse" style={{ width: '55%', height: '0.75rem' }} />
                 </div>
               ))}
             </div>
@@ -139,6 +140,7 @@ const Skills = ({
                     aria-label={`View ${platformName} profile`}
                   >
                     <span className="profile-name">{platformName}</span>
+                    <span className="profile-view-link">View Profile ↗</span>
                   </a>
                 ) : (
                   <div
@@ -146,6 +148,7 @@ const Skills = ({
                     className="profile-item-card profile-item-card-disabled"
                   >
                     <span className="profile-name">{platformName}</span>
+                    <span className="profile-view-link profile-view-link-disabled">No Profile</span>
                   </div>
                 );
               })}
