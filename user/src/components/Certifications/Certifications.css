@@ -42,7 +42,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
   z-index: 5;
@@ -63,16 +63,14 @@
   box-shadow: none;
 }
 
-/* Active Certificate Main Card */
 .cert-active-card {
   flex: 1;
   max-width: 800px;
   background-color: var(--bg-card, #ffffff);
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: var(--radius-lg, 16px);
-  overflow: hidden !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
   outline: none;
   display: flex;
   flex-direction: column;
@@ -83,17 +81,17 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
-/* Full Certificate Preview Box - Strict No Internal Scroll */
+/* Full Certificate Preview Box — height is driven by image aspect ratio, never fixed/cropping */
 .cert-full-preview-box {
   width: 100%;
-  height: clamp(300px, 48vh, 520px);
-  background-color: #0f172a;
+  background-color: #f8fafc;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden !important;
   border-bottom: 1px solid var(--border-color, #e2e8f0);
+  padding: 1.25rem;
+  box-sizing: border-box;
 }
 
 .cert-img-wrapper-link {
@@ -101,47 +99,44 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 100%;
-  overflow: hidden !important;
   text-decoration: none;
-  background-color: #0f172a;
+  background-color: transparent;
 }
 
-/* CRITICAL: object-fit contain & auto dimensions prevent cropping and distortion */
+/* Full certificate — contain mode, aspect ratio preserved, never cropped */
 .cert-full-img {
-  max-width: 100% !important;
-  max-height: 100% !important;
-  width: auto !important;
-  height: auto !important;
-  object-fit: contain !important;
   display: block;
-  margin: auto;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  margin: 0 auto;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
 }
 
 .cert-active-card:hover .cert-full-img {
-  transform: scale(1.015);
+  transform: scale(1.01);
 }
 
-/* PDF Preview Embed Styles - No Internal Scroll */
+/* PDF Preview Embed Styles */
 .pdf-viewer-wrapper {
   width: 100%;
-  height: 100%;
+  min-height: clamp(420px, 70vh, 720px);
   position: relative;
   background-color: #1e293b;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  overflow: hidden !important;
 }
 
 .pdf-embed-object,
 .pdf-embed-iframe {
   width: 100%;
-  height: 100%;
+  min-height: clamp(420px, 70vh, 720px);
   border: none;
   display: block;
-  overflow: hidden !important;
 }
 
 .pdf-open-overlay {
@@ -161,7 +156,7 @@
   text-decoration: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(4px);
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .btn-view-pdf-floating:hover {
@@ -209,7 +204,7 @@
   padding: 0.45rem 1rem;
   border-radius: 8px;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .btn-view-pdf-large:hover {
@@ -266,7 +261,7 @@
   color: var(--primary, #2563eb);
   text-decoration: none;
   margin-left: auto;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .cert-verify-link:hover {
@@ -316,7 +311,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .cert-control-btn-mobile:hover:not(:disabled) {
@@ -343,7 +338,7 @@
   background-color: #cbd5e1;
   border: none;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: background-color 0.25s ease, width 0.25s ease;
   padding: 0;
 }
 
@@ -364,7 +359,7 @@
   }
 
   .cert-full-preview-box {
-    height: clamp(230px, 36vh, 340px);
+    padding: 0.75rem;
   }
 
   .cert-verify-link {
