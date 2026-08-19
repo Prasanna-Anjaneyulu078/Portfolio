@@ -14,6 +14,7 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
   const touchStartX = useRef(null);
   const touchEndX = useRef(null);
   const carouselRef = useRef(null);
+  const carouselTrackRef = useRef(null);
   const projectsSectionRef = useRef(null);
 
   // Helper to split tech stack string into array of tech items
@@ -66,15 +67,8 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
     setCarouselIndex((prev) => Math.min(maxCarouselIndex, prev + 1));
   };
 
-  // Touch Swipe Handlers for mobile carousel
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
+  // Touch Swipe Handlers — attached via useEffect with { passive: true } to avoid
+  // scroll-blocking non-passive event listener violation.
   const handleTouchEnd = () => {
     if (!touchStartX.current || !touchEndX.current) return;
     const distance = touchStartX.current - touchEndX.current;
@@ -90,6 +84,28 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
     touchStartX.current = null;
     touchEndX.current = null;
   };
+
+  const handleTouchEndRef = useRef(handleTouchEnd);
+  useEffect(() => { handleTouchEndRef.current = handleTouchEnd; });
+
+  useEffect(() => {
+    const track = carouselTrackRef.current;
+    if (!track) return;
+
+    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+    const onTouchMove = (e) => { touchEndX.current = e.touches[0].clientX; };
+    const onTouchEnd = () => handleTouchEndRef.current();
+
+    track.addEventListener('touchstart', onTouchStart, { passive: true });
+    track.addEventListener('touchmove', onTouchMove, { passive: true });
+    track.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      track.removeEventListener('touchstart', onTouchStart);
+      track.removeEventListener('touchmove', onTouchMove);
+      track.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [showMoreProjects]);
 
   // Keyboard navigation for carousel
   useEffect(() => {
@@ -392,12 +408,10 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
               </div>
             </div>
 
-            {/* Carousel Viewport Track */}
+            {/* Carousel Viewport Track — touch listeners attached passively via useEffect */}
             <div
+              ref={carouselTrackRef}
               className="carousel-viewport-track"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
             >
               <div
                 className="carousel-slides-wrapper"

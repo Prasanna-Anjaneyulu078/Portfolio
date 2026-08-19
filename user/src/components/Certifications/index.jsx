@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import SectionHeader from '../SectionHeader';
 import './Certifications.css';
 
@@ -90,6 +90,7 @@ const Certifications = ({ certifications = [] }) => {
 
   const touchStartX = useRef(null);
   const touchEndX = useRef(null);
+  const certCardRef = useRef(null);
 
   // Filter active/visible certs & sort strictly by displayOrder ascending
   const validCerts = React.useMemo(() => {
@@ -134,15 +135,7 @@ const Certifications = ({ certifications = [] }) => {
     setCurrentIndex((prev) => Math.min(maxIndex, prev + 1));
   };
 
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
+  const handleTouchEnd = useCallback(() => {
     if (!touchStartX.current || !touchEndX.current) return;
     const distance = touchStartX.current - touchEndX.current;
     if (distance > 50 && currentIndex < maxIndex) {
@@ -152,7 +145,27 @@ const Certifications = ({ certifications = [] }) => {
     }
     touchStartX.current = null;
     touchEndX.current = null;
-  };
+  }, [currentIndex, maxIndex]);
+
+  // Attach touch listeners with { passive: true } to prevent scroll-blocking violation
+  useEffect(() => {
+    const card = certCardRef.current;
+    if (!card) return;
+
+    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+    const onTouchMove = (e) => { touchEndX.current = e.touches[0].clientX; };
+    const onTouchEnd = () => handleTouchEnd();
+
+    card.addEventListener('touchstart', onTouchStart, { passive: true });
+    card.addEventListener('touchmove', onTouchMove, { passive: true });
+    card.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      card.removeEventListener('touchstart', onTouchStart);
+      card.removeEventListener('touchmove', onTouchMove);
+      card.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [handleTouchEnd]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowLeft' && currentIndex > 0) {
@@ -193,12 +206,10 @@ const Certifications = ({ certifications = [] }) => {
               </button>
             )}
 
-            {/* Active Certificate Card */}
+            {/* Active Certificate Card — touch listeners attached passively via useEffect */}
             <div
+              ref={certCardRef}
               className="cert-active-card"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
               onKeyDown={handleKeyDown}
               tabIndex={0}
             >
