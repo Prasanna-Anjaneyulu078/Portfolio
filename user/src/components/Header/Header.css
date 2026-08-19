@@ -81,7 +81,6 @@
 
 .nav-link:hover {
   color: var(--primary);
-  background-color: var(--primary-light);
 }
 
 .nav-link.active {
@@ -160,9 +159,14 @@
     border-radius: var(--radius-sm);
   }
 
-  .mobile-link.active, .mobile-link:hover {
+  .mobile-link.active {
     color: var(--primary);
     background-color: var(--primary-light);
+    font-weight: 700;
+  }
+
+  .mobile-link:hover {
+    color: var(--primary);
     font-weight: 700;
   }
 }

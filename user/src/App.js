@@ -20,9 +20,13 @@ const App = () => {
   // Portfolio Data States
   const [userData, setUserData] = useState({});
   const [educationData, setEducationData] = useState({ academic: [], coreObjective: '' });
+  const [educationError, setEducationError] = useState(false);
   const [skillsData, setSkillsData] = useState([]);
+  const [skillsError, setSkillsError] = useState(false);
   const [profilesData, setProfilesData] = useState([]);
+  const [profilesError, setProfilesError] = useState(false);
   const [projectsData, setProjectsData] = useState([]);
+  const [projectsError, setProjectsError] = useState(false);
   const [experiencesData, setExperiencesData] = useState([]);
   const [certificationsData, setCertificationsData] = useState([]);
 
@@ -44,7 +48,7 @@ const App = () => {
           axios.get(`${API_BASE_URL}/education`),
           axios.get(`${API_BASE_URL}/skill-groups`),
           axios.get(`${API_BASE_URL}/profiles`),
-          axios.get(`${API_BASE_URL}/projects?featured=true`),
+          axios.get(`${API_BASE_URL}/projects`),
           axios.get(`${API_BASE_URL}/experiences`),
           axios.get(`${API_BASE_URL}/certifications`),
         ]);
@@ -63,18 +67,30 @@ const App = () => {
 
         if (eduRes.status === 'fulfilled' && eduRes.value.data) {
           setEducationData(eduRes.value.data);
+          setEducationError(false);
+        } else {
+          setEducationError(true);
         }
 
         if (skillsRes.status === 'fulfilled' && Array.isArray(skillsRes.value.data)) {
           setSkillsData(skillsRes.value.data);
+          setSkillsError(false);
+        } else {
+          setSkillsError(true);
         }
 
         if (profilesRes.status === 'fulfilled' && Array.isArray(profilesRes.value.data)) {
           setProfilesData(profilesRes.value.data);
+          setProfilesError(false);
+        } else {
+          setProfilesError(true);
         }
 
         if (projectsRes.status === 'fulfilled' && Array.isArray(projectsRes.value.data)) {
           setProjectsData(projectsRes.value.data);
+          setProjectsError(false);
+        } else {
+          setProjectsError(true);
         }
 
         if (expRes.status === 'fulfilled' && Array.isArray(expRes.value.data)) {
@@ -113,11 +129,16 @@ const App = () => {
   }
 
   // Compute active visible section IDs dynamically based on loaded data
-  const hasSkills = skillsData.length > 0;
-  const hasProjects = projectsData.length > 0;
-  const hasExperience = experiencesData.length > 0;
-  const hasEducation = Array.isArray(educationData.academic) && educationData.academic.length > 0;
-  const hasCertifications = certificationsData.filter((c) => c.isActive !== false).length > 0;
+  const hasSkills =
+    skillsData.length > 0 || profilesData.length > 0 || skillsError || profilesError;
+  const hasProjects = projectsData.length > 0 || projectsError;
+  const hasExperience = Array.isArray(experiencesData) && experiencesData.length > 0;
+  const hasEducation =
+    (Array.isArray(educationData.academic) && educationData.academic.length > 0) ||
+    educationError;
+  const hasCertifications =
+    Array.isArray(certificationsData) &&
+    certificationsData.filter((c) => c.isActive !== false).length > 0;
 
   const visibleSections = [
     'home',
@@ -136,7 +157,7 @@ const App = () => {
 
       <main className="main-content">
         {/* Recruiter-Focused Section Order:
-            Home -> Skills -> Projects -> Experience -> Education -> Certifications -> Contact */}
+            Home -> Skills (Technical & Coding Profiles) -> Projects -> Experience -> Education -> Certifications -> Contact */}
 
         {/* 1. Home (Hero) */}
         <Hero
@@ -145,21 +166,39 @@ const App = () => {
           codingProfiles={profilesData}
         />
 
-        {/* 2. Skills (Displayed before Projects) */}
+        {/* 2. Skills (Includes Technical Skills & Coding Profiles Subsections) */}
         {hasSkills && (
-          <Skills skillCategories={skillsData} codingProfiles={profilesData} />
+          <Skills
+            skillCategories={skillsData}
+            codingProfiles={profilesData}
+            loading={loading}
+            error={skillsError}
+            profilesError={profilesError}
+          />
         )}
 
         {/* 3. Projects */}
-        {hasProjects && <Projects projects={projectsData} />}
+        {hasProjects && (
+          <Projects
+            projects={projectsData}
+            loading={loading}
+            error={projectsError}
+          />
+        )}
 
-        {/* 4. Experience (Dynamic show/hide) */}
+        {/* 4. Experience */}
         {hasExperience && <Experience experiences={experiencesData} />}
 
-        {/* 5. Education (Dynamic show/hide) */}
-        {hasEducation && <Education academic={educationData.academic} />}
+        {/* 5. Education */}
+        {hasEducation && (
+          <Education
+            academic={educationData.academic}
+            loading={loading}
+            error={educationError}
+          />
+        )}
 
-        {/* 6. Certifications (Dynamic show/hide) */}
+        {/* 6. Certifications */}
         {hasCertifications && (
           <Certifications certifications={certificationsData} />
         )}

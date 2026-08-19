@@ -19,6 +19,21 @@ const apiCall = async (method, endpoint = '', data = null) => {
   }
 };
 
+const extractTechList = (exp) => {
+  if (!exp) return [];
+  const rawTech = exp.technologies || exp.techStack || exp.technologyStack || exp.tech || exp.tags || exp.skills || [];
+  if (Array.isArray(rawTech)) {
+    return rawTech
+      .flatMap(item => typeof item === 'string' ? item.split(',') : (item?.name || item?.label || String(item)))
+      .map(t => typeof t === 'string' ? t.trim() : '')
+      .filter(Boolean);
+  }
+  if (typeof rawTech === 'string') {
+    return rawTech.split(',').map(t => t.trim()).filter(Boolean);
+  }
+  return [];
+};
+
 const INITIAL_FORM = {
   jobTitle: '',
   company: '',
@@ -33,18 +48,29 @@ const INITIAL_FORM = {
   techInput: ''
 };
 
+const EMPLOYMENT_OPTIONS = [
+  'Full-time',
+  'Part-time',
+  'Internship',
+  'Contract',
+  'Freelance',
+  'Self-employed',
+  'Temporary',
+  'Volunteer',
+  'Other'
+];
+
 const ExperienceSection = ({ onUpdate }) => {
   const [experiences, setExperiences] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Active items state
   const [editingExp, setEditingExp] = useState(null);
-  const [viewingExp, setViewingExp] = useState(null);
   const [deletingExp, setDeletingExp] = useState(null);
 
   // Form & Error state
@@ -96,7 +122,7 @@ const ExperienceSection = ({ onUpdate }) => {
       }
     }
 
-    if (!form.description?.trim()) newErrors.description = "Description is required.";
+    if (!form.description?.trim()) newErrors.description = "Short Professional Description is required.";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -118,19 +144,14 @@ const ExperienceSection = ({ onUpdate }) => {
       employmentType: exp.employmentType || 'Full-time',
       startDate: exp.startDate || '',
       endDate: exp.endDate || '',
-      currentlyWorking: Boolean(exp.currentlyWorking),
+      currentlyWorking: Boolean(exp.currentlyWorking || exp.isCurrentlyWorking),
       description: exp.description || '',
       responsibilitiesText: Array.isArray(exp.responsibilities) ? exp.responsibilities.join('\n') : exp.responsibilities || '',
-      technologies: Array.isArray(exp.technologies) ? exp.technologies : [],
+      technologies: extractTechList(exp),
       techInput: ''
     });
     setErrors({});
     setIsFormModalOpen(true);
-  };
-
-  const openViewModal = (exp) => {
-    setViewingExp(exp);
-    setIsDetailsModalOpen(true);
   };
 
   const openDeleteModal = (exp) => {
@@ -169,12 +190,22 @@ const ExperienceSection = ({ onUpdate }) => {
 
   // Save Experience
   const handleSave = async () => {
-    if (!validate()) return;
+    if (!validate() || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       const responsibilitiesArray = form.responsibilitiesText
         ? form.responsibilitiesText.split('\n').map(s => s.trim()).filter(Boolean)
         : [];
+
+      let currentTech = [...form.technologies];
+      if (form.techInput?.trim()) {
+        const pendingTag = form.techInput.trim();
+        if (!currentTech.includes(pendingTag)) {
+          currentTech.push(pendingTag);
+        }
+      }
+      const finalTech = Array.from(new Set(currentTech.map(t => t.trim()).filter(Boolean)));
 
       const payload = {
         _id: editingExp ? editingExp._id : undefined,
@@ -185,12 +216,17 @@ const ExperienceSection = ({ onUpdate }) => {
         startDate: form.startDate.trim(),
         endDate: form.currentlyWorking ? '' : form.endDate.trim(),
         currentlyWorking: form.currentlyWorking,
+        isCurrentlyWorking: form.currentlyWorking,
         description: form.description.trim(),
         responsibilities: responsibilitiesArray,
-        technologies: form.technologies
+        technologies: finalTech,
+        techStack: finalTech
       };
 
-      await apiCall('post', '/save', payload);
+      const endpoint = editingExp ? `/${editingExp._id}` : '/save';
+      const method = editingExp ? 'put' : 'post';
+
+      await apiCall(method, endpoint, payload);
       await fetchExperiences();
 
       setIsFormModalOpen(false);
@@ -203,12 +239,15 @@ const ExperienceSection = ({ onUpdate }) => {
       console.error("Save Error:", err);
       const errMsg = err.response?.data?.message || err.message || "Failed to save experience.";
       showToast('error', errMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Confirm Delete Experience
   const handleDelete = async () => {
-    if (!deletingExp) return;
+    if (!deletingExp || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       await apiCall('delete', `/${deletingExp._id}`);
       await fetchExperiences();
@@ -218,7 +257,22 @@ const ExperienceSection = ({ onUpdate }) => {
     } catch (err) {
       console.error("Delete Error:", err);
       showToast('error', err.response?.data?.message || "Failed to delete experience.");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const formatDateStr = (dStr) => {
+    if (!dStr) return '';
+    if (/^\d{4}-\d{2}(-\d{2})?$/.test(dStr)) {
+      const parts = dStr.split('-');
+      const year = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const day = parts[2] ? parseInt(parts[2]) : 1;
+      const dateObj = new Date(year, month, day);
+      return dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+    return dStr;
   };
 
   if (isLoading) {
@@ -232,10 +286,11 @@ const ExperienceSection = ({ onUpdate }) => {
 
   return (
     <section className="section-container experience-section-container" id="experience">
+      {/* Page Header */}
       <div className="section-title-row">
         <div className="section-header">
           <h3>Experience Management</h3>
-          <p>Add, edit, and organize your professional career, internships, and work history.</p>
+          <p>Manage professional experience, internships, and work history.</p>
         </div>
         <button className="btn-add-project" onClick={openAddModal}>
           <span className="material-symbols-outlined">add</span>
@@ -253,112 +308,111 @@ const ExperienceSection = ({ onUpdate }) => {
         </div>
       )}
 
-      {/* Experience List Table or Empty Canvas */}
-      <div className="projects-display-wrapper">
+      {/* Experience Timeline or Empty State */}
+      <div className="experience-display-wrapper">
         {experiences.length === 0 ? (
           <div className="empty-projects-canvas">
             <span className="material-symbols-outlined icon-giant">business_center</span>
             <div className="empty-text-group">
               <h4>No Experience Added</h4>
-              <p>Add your first professional experience to display it on the portfolio.</p>
+              <p>Add your first professional experience to display it on your portfolio.</p>
             </div>
             <button className="btn-primary-action" onClick={openAddModal}>
               <span className="material-symbols-outlined">add</span> Add Experience
             </button>
           </div>
         ) : (
-          <div className="experience-table-container">
-            <table className="experience-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '60px' }}>Icon</th>
-                  <th>Job Title & Company</th>
-                  <th>Type</th>
-                  <th>Duration</th>
-                  <th>Status</th>
-                  <th>Technologies</th>
-                  <th style={{ width: '120px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {experiences.map((exp) => (
-                  <tr key={exp._id}>
-                    <td>
-                      <div className="table-icon-box">
-                        <span className="material-symbols-outlined">work</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div>
-                        <span className="exp-title-main">{exp.jobTitle}</span>
-                        <span className="exp-company-sub">
-                          <span className="material-symbols-outlined" style={{ fontSize: '0.9rem' }}>
-                            apartment
+          <div className="experience-timeline-admin">
+            {experiences.map((exp) => {
+              const isOngoing = Boolean(exp.currentlyWorking || exp.isCurrentlyWorking);
+              const startFormatted = formatDateStr(exp.startDate);
+              const endFormatted = isOngoing ? 'Present' : formatDateStr(exp.endDate);
+              const durationText = startFormatted && endFormatted
+                ? `${startFormatted} — ${endFormatted}`
+                : (startFormatted || endFormatted);
+
+              const techList = extractTechList(exp);
+
+              return (
+                <div key={exp._id} className="timeline-admin-item">
+                  <div className="timeline-admin-node">
+                    <div className="timeline-admin-dot"></div>
+                    <div className="timeline-admin-line"></div>
+                  </div>
+
+                  <div className="admin-experience-card">
+                    <div className="exp-card-header">
+                      <div className="exp-card-main-info">
+                        <h4 className="exp-job-title">{exp.jobTitle}</h4>
+                        <div className="exp-company-line">
+                          <span className="exp-company-name">
+                            <span className="material-symbols-outlined icon-inline">apartment</span>
+                            {exp.company}
                           </span>
-                          {exp.company}
-                          {exp.location ? ` • ${exp.location}` : ''}
-                        </span>
+                          {exp.location && (
+                            <span className="exp-location-tag">
+                              <span className="material-symbols-outlined icon-inline">location_on</span>
+                              {exp.location}
+                            </span>
+                          )}
+                          {exp.employmentType && (
+                            <span className="exp-type-badge">{exp.employmentType}</span>
+                          )}
+                        </div>
                       </div>
-                    </td>
-                    <td>
-                      <span className="exp-type-badge">{exp.employmentType || 'Full-time'}</span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        {exp.startDate} - {exp.currentlyWorking ? 'Present' : exp.endDate || ''}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`exp-status-badge ${exp.currentlyWorking ? 'ongoing' : 'completed'}`}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '0.85rem' }}>
-                          {exp.currentlyWorking ? 'sensors' : 'check_circle'}
-                        </span>
-                        {exp.currentlyWorking ? 'Ongoing' : 'Completed'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="tech-chips-wrapper">
-                        {exp.technologies?.slice(0, 3).map((tech, i) => (
-                          <span key={i} className="tech-chip-item">
-                            {tech}
+
+                      <div className="exp-card-meta-side">
+                        {isOngoing ? (
+                          <span className="badge-ongoing-role">
+                            <span className="dot-live">●</span> Ongoing
                           </span>
+                        ) : null}
+                        <span className="exp-date-duration">{durationText}</span>
+                      </div>
+                    </div>
+
+                    {exp.description && (
+                      <p className="exp-card-desc">{exp.description}</p>
+                    )}
+
+                    {Array.isArray(exp.responsibilities) && exp.responsibilities.length > 0 && (
+                      <ul className="exp-resp-list">
+                        {exp.responsibilities.map((resp, i) => (
+                          <li key={i}>{resp}</li>
                         ))}
-                        {exp.technologies?.length > 3 && (
-                          <span className="tech-chip-item" style={{ opacity: 0.7 }}>
-                            +{exp.technologies.length - 3} more
-                          </span>
-                        )}
+                      </ul>
+                    )}
+
+                    {techList.length > 0 && (
+                      <div className="exp-tech-chips-group">
+                        {techList.map((tech, i) => (
+                          <span key={i} className="exp-tech-chip">{tech}</span>
+                        ))}
                       </div>
-                    </td>
-                    <td>
-                      <div className="table-actions-cell">
+                    )}
+
+                    <div className="exp-card-footer">
+                      <div className="exp-actions-group">
                         <button
-                          onClick={() => openViewModal(exp)}
-                          className="action-btn-icon view-btn"
-                          title="View Details"
-                        >
-                          <span className="material-symbols-outlined">visibility</span>
-                        </button>
-                        <button
+                          className="btn-action-slate"
                           onClick={() => openEditModal(exp)}
-                          className="action-btn-icon edit-btn"
                           title="Edit Experience"
                         >
-                          <span className="material-symbols-outlined">edit</span>
+                          <span className="material-symbols-outlined">edit</span> Edit
                         </button>
                         <button
+                          className="btn-action-danger"
                           onClick={() => openDeleteModal(exp)}
-                          className="action-btn-icon delete-btn"
                           title="Delete Experience"
                         >
-                          <span className="material-symbols-outlined">delete</span>
+                          <span className="material-symbols-outlined">delete</span> Delete
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -420,12 +474,9 @@ const ExperienceSection = ({ onUpdate }) => {
                 value={form.employmentType}
                 onChange={(e) => setForm({ ...form, employmentType: e.target.value })}
               >
-                <option value="Full-time">Full-time</option>
-                <option value="Part-time">Part-time</option>
-                <option value="Internship">Internship</option>
-                <option value="Contract">Contract</option>
-                <option value="Freelance">Freelance</option>
-                <option value="Self-employed">Self-employed</option>
+                {EMPLOYMENT_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -484,7 +535,7 @@ const ExperienceSection = ({ onUpdate }) => {
             <textarea
               id="responsibilities"
               className="form-input-styled"
-              placeholder="- Developed full-stack web features&#10;- Optimized database queries by 40%&#10;- Collaborated with cross-functional teams"
+              placeholder="Developed full-stack web features&#10;Optimized database queries by 40%&#10;Collaborated with cross-functional teams"
               rows={4}
               value={form.responsibilitiesText}
               onChange={(e) => setForm({ ...form, responsibilitiesText: e.target.value })}
@@ -497,14 +548,11 @@ const ExperienceSection = ({ onUpdate }) => {
               <input
                 type="text"
                 className="form-input-styled"
-                placeholder="Type technology name (e.g. React.js, Node.js) and press Enter"
+                placeholder="Type technology name (e.g. React.js) and press Enter"
                 value={form.techInput}
                 onChange={(e) => setForm({ ...form, techInput: e.target.value })}
                 onKeyDown={handleTechKeyDown}
               />
-              <button type="button" className="btn-tag-add" onClick={handleAddTech}>
-                Add Tag
-              </button>
             </div>
 
             {form.technologies.length > 0 && (
@@ -515,7 +563,7 @@ const ExperienceSection = ({ onUpdate }) => {
                     <span
                       className="tag-remove-btn"
                       onClick={() => handleRemoveTech(tag)}
-                      title="Remove"
+                      title="Remove tag"
                     >
                       ×
                     </span>
@@ -526,82 +574,6 @@ const ExperienceSection = ({ onUpdate }) => {
           </div>
         </div>
       </Modal>
-
-      {/* View Details Modal */}
-      {viewingExp && (
-        <Modal
-          title="Experience Details"
-          isOpen={isDetailsModalOpen}
-          onClose={() => setIsDetailsModalOpen(false)}
-          onSave={() => setIsDetailsModalOpen(false)}
-        >
-          <div className="experience-details-modal">
-            <div className="details-row-header">
-              <h3 className="details-job-title">{viewingExp.jobTitle}</h3>
-              <div className="details-company-line">
-                <span className="material-symbols-outlined">apartment</span>
-                {viewingExp.company}
-              </div>
-            </div>
-
-            <div className="details-meta-grid">
-              <div className="details-meta-item">
-                <span className="details-meta-label">Employment Type</span>
-                <span className="details-meta-value">{viewingExp.employmentType || 'Full-time'}</span>
-              </div>
-              <div className="details-meta-item">
-                <span className="details-meta-label">Location</span>
-                <span className="details-meta-value">{viewingExp.location || 'N/A'}</span>
-              </div>
-              <div className="details-meta-item">
-                <span className="details-meta-label">Duration</span>
-                <span className="details-meta-value">
-                  {viewingExp.startDate} - {viewingExp.currentlyWorking ? 'Present' : viewingExp.endDate || ''}
-                </span>
-              </div>
-              <div className="details-meta-item">
-                <span className="details-meta-label">Status</span>
-                <span className="details-meta-value">
-                  {viewingExp.currentlyWorking ? 'Ongoing (Present)' : 'Completed'}
-                </span>
-              </div>
-            </div>
-
-            {viewingExp.description && (
-              <div>
-                <h4 className="details-section-label">Description</h4>
-                <p className="details-desc-text">{viewingExp.description}</p>
-              </div>
-            )}
-
-            {viewingExp.responsibilities && viewingExp.responsibilities.length > 0 && (
-              <div>
-                <h4 className="details-section-label">Key Responsibilities & Deliverables</h4>
-                <ul className="details-resp-list">
-                  {viewingExp.responsibilities.map((resp, i) => (
-                    <li key={i} className="details-resp-item">
-                      {resp}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {viewingExp.technologies && viewingExp.technologies.length > 0 && (
-              <div>
-                <h4 className="details-section-label">Tech Stack & Tools</h4>
-                <div className="tags-chips-container">
-                  {viewingExp.technologies.map((tech, i) => (
-                    <span key={i} className="tech-chip-item">
-                      {tech}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
 
       {/* Delete Confirmation Modal */}
       {deletingExp && (
@@ -619,7 +591,7 @@ const ExperienceSection = ({ onUpdate }) => {
             <p className="confirm-modal-desc">
               Are you sure you want to delete <strong>{deletingExp.jobTitle}</strong> at <strong>{deletingExp.company}</strong>?
               <br />
-              This action cannot be undone.
+              This experience will be permanently removed.
             </p>
           </div>
         </Modal>

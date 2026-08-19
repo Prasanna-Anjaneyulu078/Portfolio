@@ -3,10 +3,16 @@ import React from 'react';
 const ProjectModal = ({ project, onClose }) => {
   if (!project) return null;
 
-  const techList = Array.isArray(project.techStack)
+  const techList = Array.isArray(project.techStack) && project.techStack.length > 0
     ? project.techStack
-    : typeof project.techStack === 'string'
+    : typeof project.techStack === 'string' && project.techStack.trim().length > 0
     ? project.techStack.split(',').map((t) => t.trim())
+    : [];
+
+  const highlights = Array.isArray(project.highlights) && project.highlights.length > 0
+    ? project.highlights
+    : Array.isArray(project.tags) && project.tags.length > 0
+    ? project.tags
     : [];
 
   return (
@@ -31,10 +37,26 @@ const ProjectModal = ({ project, onClose }) => {
         </div>
 
         <div className="modal-body">
-          <div className="modal-badge">{project.category || 'Project'}</div>
+          <div className="modal-badge">{project.badge || project.category || 'Project'}</div>
           <h2 className="modal-title">{project.title}</h2>
 
           <p className="modal-description">{project.description}</p>
+
+          {project.workflow && project.workflow.length > 0 && (
+            <div className="workflow-container" style={{ marginBottom: '1.25rem' }}>
+              <span className="workflow-label">Pipeline Workflow:</span>
+              <div className="workflow-steps">
+                {project.workflow.map((step, sIdx) => (
+                  <React.Fragment key={sIdx}>
+                    <span className="workflow-step">{step}</span>
+                    {sIdx < project.workflow.length - 1 && (
+                      <span className="workflow-arrow">→</span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
 
           {techList.length > 0 && (
             <div className="modal-tech-group">
@@ -49,11 +71,11 @@ const ProjectModal = ({ project, onClose }) => {
             </div>
           )}
 
-          {project.tags && project.tags.length > 0 && (
+          {highlights.length > 0 && (
             <div className="modal-tags-group">
-              <h4 className="modal-section-label">Features & Concepts</h4>
+              <h4 className="modal-section-label">Key Highlights & Features</h4>
               <div className="modal-tags">
-                {project.tags.map((tag, idx) => (
+                {highlights.map((tag, idx) => (
                   <span key={idx} className="modal-tag tag-feature">
                     {tag}
                   </span>
@@ -68,10 +90,9 @@ const ProjectModal = ({ project, onClose }) => {
                 href={project.codeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary"
+                className="cta-btn secondary-cta"
               >
-                <span className="material-symbols-outlined">code</span>
-                GitHub Source
+                GitHub Source ↗
               </a>
             )}
             {project.demoUrl && (
@@ -79,10 +100,9 @@ const ProjectModal = ({ project, onClose }) => {
                 href={project.demoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-outline"
+                className="cta-btn primary-cta"
               >
-                <span className="material-symbols-outlined">rocket_launch</span>
-                Live Demo
+                Live Demo ↗
               </a>
             )}
           </div>
@@ -93,3 +113,4 @@ const ProjectModal = ({ project, onClose }) => {
 };
 
 export default ProjectModal;
+

@@ -1,8 +1,7 @@
 import React from 'react';
 import './index.css';
 
-const Modal = ({ title, isOpen, onClose, onSave, children }) => {
-  // Logic remains identical: prevent rendering if modal is not active
+const Modal = ({ title, isOpen = true, onClose, onSave, children }) => {
   if (!isOpen) return null;
 
   return (
@@ -17,14 +16,16 @@ const Modal = ({ title, isOpen, onClose, onSave, children }) => {
         <div className="modal-body">
           {children}
         </div>
-        <div className="modal-footer">
-          <button className="modal-btn modal-btn-cancel" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="modal-btn modal-btn-save" onClick={onSave}>
-            Save Changes
-          </button>
-        </div>
+        {onSave && (
+          <div className="modal-footer">
+            <button className="modal-btn modal-btn-cancel" onClick={onClose}>
+              Cancel
+            </button>
+            <button className="modal-btn modal-btn-save" onClick={onSave}>
+              Save Changes
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

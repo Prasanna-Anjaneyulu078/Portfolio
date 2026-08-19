@@ -28,7 +28,7 @@
 .menu-btn:hover { color: var(--primary); }
 
 .header-title {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--slate-900);
   white-space: nowrap;
@@ -60,7 +60,7 @@
 }
 
 .user-name {
-  font-size: 0.875rem;
+  font-size: 0.84375rem;
   font-weight: 600;
   color: var(--slate-900);
 }

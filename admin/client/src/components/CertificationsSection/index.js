@@ -20,23 +20,112 @@ const apiCall = async (method, endpoint = '', data = null) => {
   }
 };
 
+const resolveFileUrl = (urlStr) => {
+  if (!urlStr || typeof urlStr !== 'string') return '';
+  const trimmed = urlStr.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.startsWith('data:')) return trimmed;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL
+    ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '')
+    : 'http://localhost:3002';
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${apiBase}${cleanPath}`;
+};
+
+const detectFileType = (urlStr) => {
+  if (!urlStr) return { isPdf: false, isImage: false };
+  const lower = urlStr.toLowerCase();
+  if (lower.startsWith('data:application/pdf') || lower.includes('.pdf')) {
+    return { isPdf: true, isImage: false };
+  }
+  return { isPdf: false, isImage: true };
+};
+
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'application/pdf'];
+
+const AdminPdfPreview = ({ fileUrl, title }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="cert-pdf-badge-box">
+        <span className="material-symbols-outlined icon-pdf">picture_as_pdf</span>
+        <span className="pdf-label">PDF Certificate Document</span>
+        <a
+          href={fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-cert-preview"
+        >
+          View PDF ↗
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-pdf-frame-wrapper">
+      <object
+        data={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+        type="application/pdf"
+        className="admin-pdf-object"
+        onError={() => setHasError(true)}
+      >
+        <iframe
+          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+          title={title || 'PDF Certificate'}
+          className="admin-pdf-iframe"
+          onError={() => setHasError(true)}
+        >
+          <div className="cert-pdf-badge-box">
+            <span className="material-symbols-outlined icon-pdf">picture_as_pdf</span>
+            <span className="pdf-label">PDF Certificate Document</span>
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-cert-preview"
+            >
+              View PDF ↗
+            </a>
+          </div>
+        </iframe>
+      </object>
+      <a
+        href={fileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn-cert-preview-overlay"
+        title="Open PDF in new tab"
+      >
+        <span className="material-symbols-outlined">visibility</span>
+        View PDF ↗
+      </a>
+    </div>
+  );
+};
+
 const CertificationsSection = () => {
   const [certifications, setCertifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCert, setEditingCert] = useState(null);
   const [errors, setErrors] = useState({});
 
   const [certForm, setCertForm] = useState({
     title: "",
-    issuer: "",
+    issuingOrganization: "",
     issueDate: "",
-    expirationDate: "",
     credentialId: "",
     verificationUrl: "",
-    imageUrl: "",
+    certificateFileUrl: "",
     displayOrder: 0,
-    isActive: true
+    isVisible: true
   });
 
   const fetchCertifications = async () => {
@@ -56,10 +145,47 @@ const CertificationsSection = () => {
     fetchCertifications();
   }, []);
 
+  // Sorted certifications list adhering strictly to Admin displayOrder
+  const sortedCertifications = React.useMemo(() => {
+    if (!Array.isArray(certifications)) return [];
+    return [...certifications].sort((a, b) => {
+      const orderA = typeof a.displayOrder === 'number' ? a.displayOrder : typeof a.order === 'number' ? a.order : 0;
+      const orderB = typeof b.displayOrder === 'number' ? b.displayOrder : typeof b.order === 'number' ? b.order : 0;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+      return String(a._id || '').localeCompare(String(b._id || ''));
+    });
+  }, [certifications]);
+
   const validate = () => {
     const newErrors = {};
-    if (!certForm.title?.trim()) newErrors.title = "Certification title is required";
-    if (!certForm.issuer?.trim()) newErrors.issuer = "Issuing organization is required";
+    const titleClean = certForm.title?.trim();
+    if (!titleClean) {
+      newErrors.title = "Certification title is required";
+    } else if (titleClean.length > 150) {
+      newErrors.title = "Title cannot exceed 150 characters";
+    }
+
+    const orgClean = certForm.issuingOrganization?.trim();
+    if (!orgClean) {
+      newErrors.issuingOrganization = "Issuing organization is required";
+    }
+
+    const dateClean = certForm.issueDate?.trim();
+    if (!dateClean) {
+      newErrors.issueDate = "Issue date is required";
+    }
+
+    if (certForm.verificationUrl?.trim() && !/^https?:\/\/.+/i.test(certForm.verificationUrl.trim())) {
+      newErrors.verificationUrl = "Enter a valid URL starting with http:// or https://";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -68,14 +194,13 @@ const CertificationsSection = () => {
     setEditingCert(null);
     setCertForm({
       title: "",
-      issuer: "",
+      issuingOrganization: "",
       issueDate: "",
-      expirationDate: "",
       credentialId: "",
       verificationUrl: "",
-      imageUrl: "",
+      certificateFileUrl: "",
       displayOrder: certifications.length + 1,
-      isActive: true
+      isVisible: true
     });
     setErrors({});
     setIsModalOpen(true);
@@ -85,42 +210,60 @@ const CertificationsSection = () => {
     setEditingCert(cert);
     setCertForm({
       title: cert.title || "",
-      issuer: cert.issuer || "",
+      issuingOrganization: cert.issuingOrganization || cert.issuer || "",
       issueDate: cert.issueDate || "",
-      expirationDate: cert.expirationDate || "",
       credentialId: cert.credentialId || "",
       verificationUrl: cert.verificationUrl || "",
-      imageUrl: cert.imageUrl || "",
-      displayOrder: cert.displayOrder ?? 0,
-      isActive: cert.isActive ?? true
+      certificateFileUrl: cert.certificateFileUrl || cert.imageUrl || "",
+      displayOrder: typeof cert.displayOrder === 'number' ? cert.displayOrder : typeof cert.order === 'number' ? cert.order : 0,
+      isVisible: cert.isVisible !== false && cert.isActive !== false
     });
     setErrors({});
     setIsModalOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!validate()) return;
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingCert(null);
+    setErrors({});
+  };
 
+  const handleSave = async () => {
+    if (!validate() || isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
+      const parsedOrder = parseInt(certForm.displayOrder, 10) || 0;
       const payload = {
-        ...certForm,
-        _id: editingCert ? editingCert._id : undefined
+        _id: editingCert ? editingCert._id : undefined,
+        title: certForm.title.trim(),
+        issuingOrganization: certForm.issuingOrganization.trim(),
+        issuer: certForm.issuingOrganization.trim(),
+        issueDate: certForm.issueDate.trim(),
+        credentialId: certForm.credentialId.trim(),
+        verificationUrl: certForm.verificationUrl.trim(),
+        certificateFileUrl: certForm.certificateFileUrl,
+        imageUrl: certForm.certificateFileUrl,
+        displayOrder: parsedOrder,
+        order: parsedOrder,
+        isVisible: certForm.isVisible,
+        isActive: certForm.isVisible
       };
+
       await apiCall('post', '/save', payload);
       await fetchCertifications();
-      setIsModalOpen(false);
-      setEditingCert(null);
-      setErrors({});
+      closeModal();
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to save certification.";
       const field = err.response?.data?.field || "general";
       setErrors(prev => ({ ...prev, [field]: msg, general: msg }));
-      alert(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this certification?")) return;
+  const handleDelete = async (id, title) => {
+    if (!window.confirm(`Delete certification "${title || 'item'}"?\nThis action cannot be undone.`)) return;
     try {
       await apiCall('delete', `/${id}`);
       fetchCertifications();
@@ -129,9 +272,9 @@ const CertificationsSection = () => {
     }
   };
 
-  const handleToggleStatus = async (id) => {
+  const handleToggleVisibility = async (cert) => {
     try {
-      await apiCall('patch', `/${id}/status`);
+      await apiCall('patch', `/${cert._id}/status`);
       fetchCertifications();
     } catch (err) {
       console.error("Toggle Status Error:", err.message);
@@ -139,13 +282,32 @@ const CertificationsSection = () => {
   };
 
   const handleFileChange = async (e) => {
-    if (e.target.files && e.target.files[0]) {
-      try {
-        const base64 = await fileToBase64(e.target.files[0]);
-        setCertForm({ ...certForm, imageUrl: base64 });
-      } catch (err) {
-        console.error("File Error:", err);
-      }
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrors(prev => ({
+        ...prev,
+        certificateFileUrl: `File size exceeds limit of 5 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB selected)`
+      }));
+      return;
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
+      setErrors(prev => ({
+        ...prev,
+        certificateFileUrl: "Unsupported file type. Please upload PNG, JPG, JPEG, SVG, or PDF."
+      }));
+      return;
+    }
+
+    try {
+      const base64 = await fileToBase64(file);
+      setCertForm(prev => ({ ...prev, certificateFileUrl: base64 }));
+      setErrors(prev => ({ ...prev, certificateFileUrl: null }));
+    } catch (err) {
+      console.error("File Conversion Error:", err);
+      setErrors(prev => ({ ...prev, certificateFileUrl: "Failed to read file. Please try again." }));
     }
   };
 
@@ -160,243 +322,352 @@ const CertificationsSection = () => {
 
   return (
     <section className="section-container" id="certifications">
+      {/* Dashboard Page Header */}
       <div className="section-title-row">
         <div className="section-header">
-          <h3>Certifications</h3>
-          <p>Manage your professional credentials, licenses, and verified certificates.</p>
+          <h3>Certifications Management</h3>
+          <p className="section-subtext">
+            Add, edit, and organize display priority for your verified credentials.
+          </p>
         </div>
         <button className="btn-add-project" onClick={openAddModal}>
-          <span className="material-symbols-outlined">workspace_premium</span>
-          Add Certification
+          <span className="material-symbols-outlined">add_circle</span>
+          New Certification
         </button>
       </div>
 
-      <div className="projects-display-wrapper">
-        {certifications.length === 0 ? (
-          <div className="empty-projects-canvas">
-            <span className="material-symbols-outlined icon-giant">workspace_premium</span>
-            <div className="empty-text-group">
-              <h4>No Certifications Added Yet</h4>
-              <p>Add your earned certificates and licenses to display them on your portfolio.</p>
-            </div>
-            <button className="btn-primary-action" onClick={openAddModal}>
-              Add Your First Certification
-            </button>
+      {/* Certifications Dashboard Cards Grid */}
+      {sortedCertifications.length === 0 ? (
+        <div className="empty-cert-card-box">
+          <span className="material-symbols-outlined icon-giant">workspace_premium</span>
+          <div className="empty-text-group">
+            <h4>No Certifications Added</h4>
+            <p>Add your first certification to display it on your portfolio.</p>
           </div>
-        ) : (
-          <div className="projects-table-container">
-            <table className="projects-table">
-              <thead>
-                <tr>
-                  <th className="th-thumb">Badge</th>
-                  <th className="th-identity">Certification & Issuer</th>
-                  <th className="th-tags">Dates & ID</th>
-                  <th className="th-stack">Status</th>
-                  <th className="th-links">Verify Link</th>
-                  <th className="th-actions">Manage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {certifications.map((cert) => (
-                  <tr key={cert._id} className={!cert.isActive ? 'tr-disabled' : ''}>
-                    <td>
-                      <div 
-                        className="table-thumb-box" 
-                        style={{ backgroundImage: cert.imageUrl ? `url(${cert.imageUrl})` : 'none' }}
+          <button className="btn-primary-action" onClick={openAddModal}>
+            + New Certification
+          </button>
+        </div>
+      ) : (
+        <div className="certifications-admin-grid">
+          {sortedCertifications.map((cert) => {
+            const isPublic = cert.isVisible !== false && cert.isActive !== false;
+            const rawFileUrl = cert.certificateFileUrl || cert.imageUrl;
+            const fileUrl = resolveFileUrl(rawFileUrl);
+            const { isPdf } = detectFileType(fileUrl);
+            const issuerName = cert.issuingOrganization || cert.issuer;
+            const certOrder = typeof cert.displayOrder === 'number' ? cert.displayOrder : typeof cert.order === 'number' ? cert.order : 0;
+
+            return (
+              <div key={cert._id} className={`admin-cert-card ${!isPublic ? 'is-hidden' : ''}`}>
+                {/* Visual Header Frame - Aspect Ratio Preserving Container */}
+                <div className="cert-card-visual-frame">
+                  {fileUrl ? (
+                    isPdf ? (
+                      <AdminPdfPreview fileUrl={fileUrl} title={cert.title} />
+                    ) : (
+                      <div className="cert-image-preview-wrapper">
+                        <img
+                          src={fileUrl}
+                          alt={cert.title}
+                          className="cert-thumb-img"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextSibling) {
+                              e.currentTarget.nextSibling.style.display = 'flex';
+                            }
+                          }}
+                        />
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-cert-preview-overlay"
+                          title="View Full Certificate Image"
+                        >
+                          <span className="material-symbols-outlined">visibility</span>
+                          View Certificate ↗
+                        </a>
+                      </div>
+                    )
+                  ) : (
+                    <div className="cert-no-image-box">
+                      <span className="material-symbols-outlined">workspace_premium</span>
+                      <span className="no-file-text">No File Uploaded</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Body Information */}
+                <div className="cert-card-body">
+                  <div className="cert-card-title-row">
+                    <h4 className="cert-card-title">{cert.title}</h4>
+                    <span className={`cert-status-tag ${isPublic ? 'active' : 'hidden'}`}>
+                      {isPublic ? '● Active & Visible' : '○ Hidden'}
+                    </span>
+                  </div>
+
+                  {issuerName && <p className="cert-card-issuer">{issuerName}</p>}
+
+                  <div className="cert-card-metadata">
+                    {cert.issueDate && (
+                      <div className="cert-meta-item">
+                        <span className="material-symbols-outlined">event</span>
+                        <span>Issued: {cert.issueDate}</span>
+                      </div>
+                    )}
+
+                    {cert.credentialId && cert.credentialId.trim() !== '' && (
+                      <div className="cert-meta-item">
+                        <span className="material-symbols-outlined">badge</span>
+                        <span>ID: {cert.credentialId}</span>
+                      </div>
+                    )}
+
+                    <div className="cert-meta-item">
+                      <span className="material-symbols-outlined">format_list_numbered</span>
+                      <span>Display Order: #{certOrder}</span>
+                    </div>
+                  </div>
+
+                  {/* Verification URL Link */}
+                  {cert.verificationUrl && cert.verificationUrl.trim() !== '' && (
+                    <a
+                      href={cert.verificationUrl.startsWith('http') ? cert.verificationUrl : `https://${cert.verificationUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-verify-credential"
+                    >
+                      Verify Credential
+                      <span className="material-symbols-outlined">open_in_new</span>
+                    </a>
+                  )}
+
+                  {/* Card Management Action Toolbar */}
+                  <div className="cert-card-actions">
+                    {fileUrl && (
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-card-action view"
+                        title="View Full File"
                       >
-                        {!cert.imageUrl && (
-                          <span className="material-symbols-outlined">verified</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-identity-block">
-                        <span className="table-title-main">{cert.title}</span>
-                        <span className="table-chip-tag" style={{ fontSize: '11px', width: 'fit-content' }}>
-                          {cert.issuer}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cert-dates-block">
-                        {cert.issueDate && <span className="cert-date-text">Issued: {cert.issueDate}</span>}
-                        {cert.credentialId && <span className="cert-id-text">ID: {cert.credentialId}</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <button 
-                        className={`cert-status-badge ${cert.isActive ? 'active' : 'inactive'}`}
-                        onClick={() => handleToggleStatus(cert._id)}
-                        title="Click to toggle visibility"
-                      >
-                        <span className="material-symbols-outlined">
-                          {cert.isActive ? 'visibility' : 'visibility_off'}
-                        </span>
-                        {cert.isActive ? 'Active' : 'Disabled'}
-                      </button>
-                    </td>
-                    <td>
-                      <div className="table-link-group">
-                        {cert.verificationUrl ? (
-                          <a 
-                            href={cert.verificationUrl.startsWith('http') ? cert.verificationUrl : `https://${cert.verificationUrl}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="table-nav-link demo-accent"
-                            title="Verify Certificate"
-                          >
-                            <span className="material-symbols-outlined">open_in_new</span>
-                          </a>
-                        ) : (
-                          <span className="text-muted-small">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="table-btn-group">
-                        <button onClick={() => openEditModal(cert)} className="table-btn-icon edit-btn" title="Edit">
-                          <span className="material-symbols-outlined">edit</span>
-                        </button>
-                        <button onClick={() => handleDelete(cert._id)} className="table-btn-icon delete-btn" title="Delete">
-                          <span className="material-symbols-outlined">delete_forever</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                        <span className="material-symbols-outlined">visibility</span>
+                        View
+                      </a>
+                    )}
 
-      <Modal 
-        title={editingCert ? "Refine Certification" : "Add New Certification"} 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSave}
-      >
-        <div className="project-form-container">
-          <div className="form-group-box">
-            <h6 className="group-label">Credential Identity</h6>
-            <div className="form-grid-2">
-              <div className="form-field">
-                <label>Certification Title</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors.title ? 'error' : ''}`}
-                  placeholder="e.g. AWS Certified Solutions Architect" 
-                  value={certForm.title} 
-                  onChange={(e) => setCertForm({ ...certForm, title: e.target.value })}
-                />
-                {errors.title && <span className="form-error-msg">{errors.title}</span>}
-              </div>
+                    <button
+                      className="btn-card-action edit"
+                      onClick={() => openEditModal(cert)}
+                      title="Edit Certification"
+                      disabled={isSubmitting}
+                    >
+                      <span className="material-symbols-outlined">edit</span>
+                      Edit
+                    </button>
 
-              <div className="form-field">
-                <label>Issuing Organization</label>
-                <input 
-                  type="text" 
-                  className={`form-input ${errors.issuer ? 'error' : ''}`}
-                  placeholder="e.g. Amazon Web Services, Meta, Google" 
-                  value={certForm.issuer} 
-                  onChange={(e) => setCertForm({ ...certForm, issuer: e.target.value })}
-                />
-                {errors.issuer && <span className="form-error-msg">{errors.issuer}</span>}
-              </div>
-            </div>
+                    <button
+                      className={`btn-card-action visibility ${isPublic ? 'active' : ''}`}
+                      onClick={() => handleToggleVisibility(cert)}
+                      title={isPublic ? 'Hide from Portfolio' : 'Show on Portfolio'}
+                      disabled={isSubmitting}
+                    >
+                      <span className="material-symbols-outlined">
+                        {isPublic ? 'visibility_off' : 'visibility'}
+                      </span>
+                      {isPublic ? 'Hide' : 'Show'}
+                    </button>
 
-            <div className="form-grid-2">
-              <div className="form-field">
-                <label>Issue Date</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. Aug 2024" 
-                  value={certForm.issueDate} 
-                  onChange={(e) => setCertForm({ ...certForm, issueDate: e.target.value })}
-                />
-              </div>
-
-              <div className="form-field">
-                <label>Credential / License ID</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. AWS-12345678" 
-                  value={certForm.credentialId} 
-                  onChange={(e) => setCertForm({ ...certForm, credentialId: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-group-box">
-            <h6 className="group-label">Verification & Image</h6>
-            <div className="form-field">
-              <label>Verification URL</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="https://www.credly.com/org/..." 
-                value={certForm.verificationUrl} 
-                onChange={(e) => setCertForm({ ...certForm, verificationUrl: e.target.value })}
-              />
-            </div>
-
-            <div className="project-upload-area">
-              {certForm.imageUrl ? (
-                <div className="upload-preview-active">
-                  <img src={certForm.imageUrl || null} alt="Certificate Badge" />
-                  <div className="upload-actions-overlay">
-                    <label className="btn-overlay-change">
-                      <span className="material-symbols-outlined">sync</span> Replace
-                      <input type="file" accept="image/*" className="hidden-input" onChange={handleFileChange} />
-                    </label>
-                    <button type="button" className="btn-overlay-remove" onClick={() => setCertForm({ ...certForm, imageUrl: "" })}>
+                    <button
+                      className="btn-card-action delete"
+                      onClick={() => handleDelete(cert._id, cert.title)}
+                      title="Delete Certification"
+                      disabled={isSubmitting}
+                    >
                       <span className="material-symbols-outlined">delete</span>
+                      Delete
                     </button>
                   </div>
                 </div>
-              ) : (
-                <label className="upload-placeholder-zone">
-                  <span className="material-symbols-outlined">add_photo_alternate</span>
-                  <div className="placeholder-text">
-                    <p className="main-p">Upload Certificate Badge / Image</p>
-                    <p className="sub-p">PNG, JPG, SVG up to 5MB</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal Dialog for Certification Form (Create / Edit) */}
+      <Modal
+        title={editingCert ? 'Edit Certification' : 'Add New Certification'}
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onSave={handleSave}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSave();
+          }}
+          className="cert-form"
+        >
+          {errors.general && (
+            <div className="form-error-banner" role="alert">
+              <span className="material-symbols-outlined">error</span>
+              {errors.general}
+            </div>
+          )}
+
+          <div className="cert-form-grid">
+            <div className="form-group">
+              <label className="form-label">Certification Title *</label>
+              <input
+                type="text"
+                className={`form-input ${errors.title ? 'error' : ''}`}
+                placeholder="e.g. Python Programming"
+                value={certForm.title}
+                onChange={(e) => setCertForm({ ...certForm, title: e.target.value })}
+                disabled={isSubmitting}
+              />
+              {errors.title && <span className="error-text">{errors.title}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Issuing Organization *</label>
+              <input
+                type="text"
+                className={`form-input ${errors.issuingOrganization ? 'error' : ''}`}
+                placeholder="e.g. Great Learning, Coursera, AWS"
+                value={certForm.issuingOrganization}
+                onChange={(e) => setCertForm({ ...certForm, issuingOrganization: e.target.value })}
+                disabled={isSubmitting}
+              />
+              {errors.issuingOrganization && <span className="error-text">{errors.issuingOrganization}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Issue Date *</label>
+              <input
+                type="text"
+                className={`form-input ${errors.issueDate ? 'error' : ''}`}
+                placeholder="e.g. May 2026 or YYYY-MM-DD"
+                value={certForm.issueDate}
+                onChange={(e) => setCertForm({ ...certForm, issueDate: e.target.value })}
+                disabled={isSubmitting}
+              />
+              {errors.issueDate && <span className="error-text">{errors.issueDate}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Credential ID (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. GL-12345"
+                value={certForm.credentialId}
+                onChange={(e) => setCertForm({ ...certForm, credentialId: e.target.value })}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Display Order / Priority Number</label>
+              <input
+                type="number"
+                min="0"
+                className="form-input"
+                placeholder="e.g. 1, 2, 3..."
+                value={certForm.displayOrder}
+                onChange={(e) => setCertForm({ ...certForm, displayOrder: e.target.value })}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="form-group span-2">
+              <label className="form-label">Verification URL (Optional)</label>
+              <input
+                type="url"
+                className={`form-input ${errors.verificationUrl ? 'error' : ''}`}
+                placeholder="https://provider.com/verify/ABC123"
+                value={certForm.verificationUrl}
+                onChange={(e) => setCertForm({ ...certForm, verificationUrl: e.target.value })}
+                disabled={isSubmitting}
+              />
+              {errors.verificationUrl && <span className="error-text">{errors.verificationUrl}</span>}
+            </div>
+
+            {/* Certificate File Upload & Instant Preview Box */}
+            <div className="form-group span-2">
+              <label className="form-label">Certificate File (PNG, JPG, JPEG, SVG or PDF up to 5MB)</label>
+              
+              {certForm.certificateFileUrl ? (
+                <div className="modal-cert-preview-box">
+                  <div className="modal-preview-header">
+                    <span className="preview-label-title">Selected Certificate Preview:</span>
+                    <button
+                      type="button"
+                      className="btn-link-action remove"
+                      onClick={() => setCertForm({ ...certForm, certificateFileUrl: '' })}
+                      disabled={isSubmitting}
+                    >
+                      Remove File
+                    </button>
                   </div>
-                  <input type="file" accept="image/*" className="hidden-input" onChange={handleFileChange} />
+
+                  <div className="modal-preview-media-frame">
+                    {detectFileType(resolveFileUrl(certForm.certificateFileUrl)).isPdf ? (
+                      <AdminPdfPreview
+                        fileUrl={resolveFileUrl(certForm.certificateFileUrl)}
+                        title={certForm.title}
+                      />
+                    ) : (
+                      <img
+                        src={resolveFileUrl(certForm.certificateFileUrl)}
+                        alt="Certificate Preview"
+                        className="modal-cert-img"
+                      />
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="cert-upload-dropzone">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml,application/pdf"
+                  onChange={handleFileChange}
+                  id="cert-file-upload"
+                  style={{ display: 'none' }}
+                  disabled={isSubmitting}
+                />
+                <label htmlFor="cert-file-upload" className="upload-dropzone-label">
+                  <span className="material-symbols-outlined">upload_file</span>
+                  <div className="dropzone-text">
+                    <p className="main-text">
+                      {certForm.certificateFileUrl ? 'Click to Replace Certificate File' : 'Click to Upload Certificate File'}
+                    </p>
+                    <p className="sub-text">PNG, JPG, JPEG, SVG or PDF up to 5MB</p>
+                  </div>
                 </label>
+              </div>
+              {errors.certificateFileUrl && (
+                <span className="error-text block">{errors.certificateFileUrl}</span>
               )}
             </div>
-          </div>
 
-          <div className="form-group-box">
-            <h6 className="group-label">Settings</h6>
-            <div className="form-grid-2">
-              <div className="form-field">
-                <label>Display Order</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  placeholder="0" 
-                  value={certForm.displayOrder} 
-                  onChange={(e) => setCertForm({ ...certForm, displayOrder: parseInt(e.target.value) || 0 })}
+            <div className="form-group span-2">
+              <label className="checkbox-label flex-row">
+                <input
+                  type="checkbox"
+                  checked={certForm.isVisible}
+                  onChange={(e) => setCertForm({ ...certForm, isVisible: e.target.checked })}
+                  disabled={isSubmitting}
                 />
-              </div>
-
-              <div className="form-field checkbox-field-wrapper">
-                <label className="checkbox-label-styled">
-                  <input 
-                    type="checkbox" 
-                    checked={certForm.isActive} 
-                    onChange={(e) => setCertForm({ ...certForm, isActive: e.target.checked })}
-                  />
-                  <span>Active & Visible on Portfolio</span>
-                </label>
-              </div>
+                <span>Show on User Portfolio (Active & Visible)</span>
+              </label>
             </div>
           </div>
-        </div>
+        </form>
       </Modal>
     </section>
   );

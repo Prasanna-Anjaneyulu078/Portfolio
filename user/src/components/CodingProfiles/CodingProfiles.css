@@ -1,0 +1,119 @@
+.coding-profiles-section {
+  background-color: var(--bg-main, #f8fafc);
+  padding: clamp(2.25rem, 5vw, 4.25rem) 0 clamp(3.5rem, 7vw, 5.5rem) 0;
+}
+
+/* 2-Column Desktop Grid Layout */
+.profiles-grid-2col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(1.25rem, 2.5vw, 1.75rem);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.profile-item-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(1.25rem, 2.5vw, 1.65rem);
+  background-color: #ffffff;
+  border: 1px solid var(--border-accent, #e2e8f0);
+  border-radius: var(--radius-md, 14px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.04);
+  gap: 0.85rem;
+}
+
+.profile-item-card:hover {
+  border-color: var(--primary, #2563eb);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.1);
+}
+
+.profile-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profile-name {
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--text-dark, #0f172a);
+}
+
+.profile-description {
+  font-size: 0.88rem;
+  color: var(--text-gray, #475569);
+  line-height: 1.5;
+  margin: 0;
+  flex-grow: 1;
+}
+
+.profile-view-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary, #2563eb);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  width: fit-content;
+}
+
+.profile-view-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* Skeleton & Status Card Styling */
+.skeleton-pulse {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse-anim 1.5s infinite ease-in-out;
+}
+
+@keyframes skeleton-pulse-anim {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-platform { width: 45%; height: 20px; border-radius: 4px; }
+.skeleton-desc { width: 85%; height: 14px; border-radius: 4px; }
+.skeleton-link { width: 30%; height: 16px; border-radius: 4px; }
+
+.profiles-status-card {
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.profiles-status-message {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+}
+
+.profiles-error-state {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.profiles-error-state .profiles-status-message {
+  color: #dc2626;
+}
+
+/* Responsive Layout (< 768px) */
+@media (max-width: 767px) {
+  .profiles-grid-2col {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}

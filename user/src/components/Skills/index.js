@@ -1,102 +1,155 @@
 import React from 'react';
+import SectionHeader from '../SectionHeader';
 import './Skills.css';
 
-const DEFAULT_DEV_SKILLS = ['MongoDB', 'Express.js', 'React.js', 'Node.js'];
-const DEFAULT_TOOLS_SKILLS = ['Git', 'GitHub', 'VS Code', 'Vercel'];
-
-const TARGET_PROFILES = [
-  { name: 'HackerRank', key: 'hackerrank' },
-  { name: 'GeeksforGeeks', key: 'geeksforgeeks' },
-  { name: 'Code 360', key: 'code360' },
-  { name: 'LeetCode', key: 'leetcode' },
-];
-
 const formatUrl = (url) => {
-  if (!url || url === '#') return '#';
+  if (!url || url === '#') return '';
   return url.startsWith('http') ? url : `https://${url}`;
 };
 
-const Skills = ({ skillCategories = [], codingProfiles = [] }) => {
-  // Extract Development skills (from props or default)
-  const devCategory = skillCategories.find(c => 
-    c.title?.toLowerCase().includes('dev') || c.title?.toLowerCase().includes('front') || c.title?.toLowerCase().includes('full')
-  );
-  const devSkills = (devCategory && Array.isArray(devCategory.skills) && devCategory.skills.length > 0)
-    ? devCategory.skills
-    : DEFAULT_DEV_SKILLS;
+const Skills = ({
+  skillCategories = [],
+  codingProfiles = [],
+  loading = false,
+  error = false,
+  profilesError = false,
+}) => {
+  // Filter valid categories that contain skills from database
+  const validCategories = React.useMemo(() => {
+    if (!Array.isArray(skillCategories)) return [];
+    return skillCategories.filter(
+      (c) => c && c.title && Array.isArray(c.skills) && c.skills.length > 0
+    );
+  }, [skillCategories]);
 
-  // Extract Tools skills (from props or default)
-  const toolsCategory = skillCategories.find(c => 
-    c.title?.toLowerCase().includes('tool') || c.title?.toLowerCase().includes('other')
-  );
-  const toolsSkills = (toolsCategory && Array.isArray(toolsCategory.skills) && toolsCategory.skills.length > 0)
-    ? toolsCategory.skills
-    : DEFAULT_TOOLS_SKILLS;
+  // Filter valid profiles from database
+  const validProfiles = React.useMemo(() => {
+    if (!Array.isArray(codingProfiles)) return [];
+    return codingProfiles.filter(
+      (p) => p && p.platform && p.url && p.url.trim().length > 0 && p.url !== '#'
+    );
+  }, [codingProfiles]);
 
-  // Resolve 4 coding profiles to existing stored URLs or profile objects
-  const resolvedProfiles = TARGET_PROFILES.map((target) => {
-    const match = (codingProfiles || []).find(p => {
-      const platformName = p.platform?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-      const targetKey = target.key.replace(/[^a-z0-9]/g, '');
-      return platformName.includes(targetKey) || targetKey.includes(platformName);
-    });
-    return {
-      platform: target.name,
-      url: match ? match.url : '#'
-    };
-  });
+  // If no categories and no profiles, return empty state or hide
+  const hasNoCategories = validCategories.length === 0;
+  const hasNoProfiles = validProfiles.length === 0;
+
+  // Dynamic grid column calculation for Technical Skills
+  const categoryGridColumns =
+    validCategories.length === 1
+      ? '1fr'
+      : validCategories.length === 2
+      ? 'repeat(2, 1fr)'
+      : validCategories.length >= 3
+      ? 'repeat(3, 1fr)'
+      : 'repeat(2, 1fr)';
 
   return (
     <section id="skills" className="skills-section">
       <div className="container">
-        <div className="section-title-wrapper">
-          <h2 className="section-title">Technical Skills</h2>
-        </div>
+        {/* Main Section Heading */}
+        <SectionHeader title="Skills" />
 
-        {/* 2-Column Cards Grid: Development & Tools */}
-        <div className="skills-dev-tools-grid">
-          <div className="skill-card">
-            <h3 className="skill-category-title">Development</h3>
-            <div className="skill-tags">
-              {devSkills.map((skill, index) => (
-                <span key={index} className="skill-badge">
-                  {skill}
-                </span>
+        {/* Subsection 1: Technical Skills */}
+        <div className="skills-subsection">
+          <h3 className="skills-subsection-title">Technical Skills</h3>
+
+          {loading ? (
+            <div className="skills-dev-tools-grid">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="skill-card skeleton-card">
+                  <div className="skeleton-line skeleton-cat-title skeleton-pulse" />
+                  <div className="skill-tags">
+                    <div className="skeleton-chip skeleton-pulse" style={{ width: '70px' }} />
+                    <div className="skeleton-chip skeleton-pulse" style={{ width: '90px' }} />
+                    <div className="skeleton-chip skeleton-pulse" style={{ width: '60px' }} />
+                    <div className="skeleton-chip skeleton-pulse" style={{ width: '80px' }} />
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-
-          <div className="skill-card">
-            <h3 className="skill-category-title">Tools</h3>
-            <div className="skill-tags">
-              {toolsSkills.map((skill, index) => (
-                <span key={index} className="skill-badge">
-                  {skill}
-                </span>
+          ) : error ? (
+            <div className="skills-status-card skills-error-state">
+              <p className="skills-status-message">Unable to load skills information.</p>
+            </div>
+          ) : hasNoCategories ? (
+            <div className="skills-status-card skills-empty-state">
+              <p className="skills-status-message">No technical skills available.</p>
+            </div>
+          ) : (
+            <div
+              className="skills-dev-tools-grid"
+              style={{ gridTemplateColumns: categoryGridColumns }}
+            >
+              {validCategories.map((cat, idx) => (
+                <div key={cat._id || idx} className="skill-card">
+                  <h4 className="skill-category-title">{cat.title}</h4>
+                  <div className="skill-tags">
+                    {cat.skills.map((skill, index) => (
+                      <span key={index} className="skill-badge">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Full-Width Coding & Competitive Profiles Card */}
-        <div className="coding-profiles-container">
-          <h3 className="profiles-title">Coding & Competitive Profiles</h3>
-          <div className="profiles-grid-4col">
-            {resolvedProfiles.map((profile, idx) => (
-              <div key={idx} className="profile-item-card">
-                <span className="profile-name">{profile.platform}</span>
-                <a
-                  href={formatUrl(profile.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="profile-view-link"
-                >
-                  View Profile
-                  <span className="material-symbols-outlined open-icon">north_east</span>
-                </a>
-              </div>
-            ))}
-          </div>
+        {/* Subsection 2: Coding Profiles */}
+        <div className="coding-profiles-subsection">
+          <h3 className="skills-subsection-title">Coding Profiles</h3>
+
+          {loading ? (
+            <div className="profiles-grid-1x4">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="profile-item-card skeleton-card">
+                  <div className="skeleton-line skeleton-platform skeleton-pulse" />
+                  <div className="skeleton-line skeleton-desc skeleton-pulse" />
+                  <div className="skeleton-line skeleton-link skeleton-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : profilesError ? (
+            <div className="skills-status-card skills-error-state">
+              <p className="skills-status-message">Unable to load coding profiles.</p>
+            </div>
+          ) : hasNoProfiles ? (
+            <div className="skills-status-card skills-empty-state">
+              <p className="skills-status-message">No coding profiles available.</p>
+            </div>
+          ) : (
+            <div className="profiles-grid-1x4">
+              {validProfiles.map((profile, idx) => {
+                const formattedUrl = formatUrl(profile.url);
+
+                return (
+                  <div key={profile._id || idx} className="profile-item-card">
+                    <div className="profile-card-header">
+                      <span className="profile-name">{profile.platform}</span>
+                    </div>
+
+                    {profile.description && (
+                      <p className="profile-description">{profile.description}</p>
+                    )}
+
+                    {formattedUrl ? (
+                      <a
+                        href={formattedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="profile-view-link"
+                        aria-label={`View ${profile.platform} profile`}
+                      >
+                        View Profile ↗
+                      </a>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </section>

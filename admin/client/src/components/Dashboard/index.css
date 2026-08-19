@@ -133,13 +133,13 @@
 .widget-icon span { font-size: 1.5rem; }
 
 .widget-value {
-  font-size: var(--font-admin-h1);
+  font-size: var(--font-admin-stat);
   font-weight: 900;
   color: var(--slate-900);
 }
 
 .widget-label {
-  font-size: var(--font-admin-body);
+  font-size: var(--font-admin-sub);
   font-weight: 800;
   color: var(--slate-900);
 }

@@ -5,9 +5,27 @@ import './index.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
 
+const PLATFORM_ICONS = {
+  leetcode: 'code',
+  hackerrank: 'terminal',
+  gfg: 'code',
+  geeksforgeeks: 'code',
+  code360: 'dataset',
+  github: 'public',
+  linkedin: 'work',
+};
+
+const getPlatformIcon = (platform, customIcon) => {
+  if (customIcon) return customIcon;
+  const key = (platform || '').toLowerCase().replace(/\s+/g, '');
+  return PLATFORM_ICONS[key] || 'code';
+};
+
 const SkillsSection = () => {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSingleProfileModalOpen, setIsSingleProfileModalOpen] = useState(false);
+  
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -20,6 +38,8 @@ const SkillsSection = () => {
   const [profileFormData, setProfileFormData] = useState([]);
   const [newProfile, setNewProfile] = useState({ platform: "", url: "", icon: "code", color: "blue" });
 
+  const [singleProfileEdit, setSingleProfileEdit] = useState({ index: null, platform: "", url: "" });
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -31,8 +51,8 @@ const SkillsSection = () => {
         axios.get(`${API_BASE}/skill-groups`),
         axios.get(`${API_BASE}/profiles`)
       ]);
-      setSkillGroups(skillsRes.data);
-      setCodingProfiles(profilesRes.data);
+      setSkillGroups(Array.isArray(skillsRes.data) ? skillsRes.data : []);
+      setCodingProfiles(Array.isArray(profilesRes.data) ? profilesRes.data : []);
     } catch (err) {
       console.error("Fetch Error:", err);
     } finally {
@@ -40,10 +60,43 @@ const SkillsSection = () => {
     }
   };
 
+  const openAddGroupModal = () => {
+    setEditingGroup(null);
+    setGroupFormData({ title: "", skillsString: "" });
+    setIsGroupModalOpen(true);
+  };
+
+  const openEditGroupModal = (group) => {
+    setEditingGroup(group);
+    setGroupFormData({
+      title: group.title || '',
+      skillsString: Array.isArray(group.skills) ? group.skills.join(', ') : '',
+    });
+    setIsGroupModalOpen(true);
+  };
+
+  const openManageProfilesModal = () => {
+    setProfileFormData([...codingProfiles]);
+    setIsProfileModalOpen(true);
+  };
+
+  const openQuickEditProfile = (index) => {
+    const p = codingProfiles[index];
+    if (!p) return;
+    setSingleProfileEdit({ index, platform: p.platform || '', url: p.url || '' });
+    setIsSingleProfileModalOpen(true);
+  };
+
   const addNewProfileToList = () => {
-    if (!newProfile.platform || !newProfile.url) return;
-    setProfileFormData([...profileFormData, { ...newProfile }]);
+    if (!newProfile.platform?.trim() || !newProfile.url?.trim()) return;
+    setProfileFormData([...profileFormData, { ...newProfile, platform: newProfile.platform.trim(), url: newProfile.url.trim() }]);
     setNewProfile({ platform: "", url: "", icon: "code", color: "blue" });
+  };
+
+  const updateProfileInList = (index, field, value) => {
+    const updated = [...profileFormData];
+    updated[index] = { ...updated[index], [field]: value };
+    setProfileFormData(updated);
   };
 
   const removeProfileFromList = (index) => {
@@ -54,10 +107,44 @@ const SkillsSection = () => {
     setIsSaving(true);
     try {
       const res = await axios.post(`${API_BASE}/profiles/sync`, profileFormData);
-      setCodingProfiles(res.data);
+      setCodingProfiles(Array.isArray(res.data) ? res.data : profileFormData);
       setIsProfileModalOpen(false);
     } catch (err) {
       console.error("Profile Sync Error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveSingleProfile = async () => {
+    if (!singleProfileEdit.platform.trim() || singleProfileEdit.index === null) return;
+    setIsSaving(true);
+    try {
+      const updatedProfiles = codingProfiles.map((p, i) => 
+        i === singleProfileEdit.index 
+          ? { ...p, platform: singleProfileEdit.platform.trim(), url: singleProfileEdit.url.trim() } 
+          : p
+      );
+      const res = await axios.post(`${API_BASE}/profiles/sync`, updatedProfiles);
+      setCodingProfiles(Array.isArray(res.data) ? res.data : updatedProfiles);
+      setIsSingleProfileModalOpen(false);
+    } catch (err) {
+      console.error("Single Profile Save Error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteSingleProfile = async (index) => {
+    const target = codingProfiles[index];
+    if (!target || !window.confirm(`Delete coding profile "${target.platform}"?`)) return;
+    setIsSaving(true);
+    try {
+      const updatedProfiles = codingProfiles.filter((_, i) => i !== index);
+      const res = await axios.post(`${API_BASE}/profiles/sync`, updatedProfiles);
+      setCodingProfiles(Array.isArray(res.data) ? res.data : updatedProfiles);
+    } catch (err) {
+      console.error("Single Profile Delete Error:", err);
     } finally {
       setIsSaving(false);
     }
@@ -67,8 +154,8 @@ const SkillsSection = () => {
     if (!groupFormData.title.trim()) return;
     setIsSaving(true);
     const payload = { 
-      title: groupFormData.title, 
-      skills: groupFormData.skillsString.split(",").map(s => s.trim()).filter(s => s !== "") 
+      title: groupFormData.title.trim(), 
+      skills: groupFormData.skillsString.split(",").map(s => s.trim()).filter(Boolean) 
     };
     try {
       if (editingGroup) {
@@ -79,101 +166,207 @@ const SkillsSection = () => {
         setSkillGroups(prev => [...prev, res.data]);
       }
       setIsGroupModalOpen(false);
-    } catch (err) { console.error(err); } 
-    finally { setIsSaving(false); }
+    } catch (err) {
+      console.error("Skill Save Error:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const deleteGroup = async (id) => {
-    if (!window.confirm("Delete this category?")) return;
+    if (!window.confirm("Delete this category? This action cannot be undone.")) return;
     try {
       await axios.delete(`${API_BASE}/skill-groups/${id}`);
       setSkillGroups(prev => prev.filter(g => g._id !== id));
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Delete Group Error:", err);
+    }
   };
 
   if (isLoading) {
     return (
       <div className="loading-container" role="status" aria-label="Loading skills">
         <div className="loading-spinner"></div>
-        <p className="loading-text">Loading Skills...</p>
+        <p className="loading-text">Loading Skills & Profiles...</p>
       </div>
     );
   }
 
   return (
     <section className="section-container" id="skills">
+      {/* Dashboard Page Header */}
       <div className="section-title-row">
         <div className="section-header">
-          <h3>Skills & Coding Profiles</h3>
-          <p className="db-status">Live from MongoDB</p>
+          <div className="title-badge-row">
+            <h3>Skills & Coding Profiles</h3>
+            <span className="db-live-status-pill">
+              <span className="status-dot">●</span> Live from MongoDB
+            </span>
+          </div>
+          <p className="section-subtext">
+            Manage technical skills and coding profiles from MongoDB.
+          </p>
         </div>
-        <button className="btn-add-project" onClick={() => {
-            setEditingGroup(null);
-            setGroupFormData({ title: "", skillsString: "" });
-            setIsGroupModalOpen(true);
-        }}>
+        <button className="btn-add-project" onClick={openAddGroupModal}>
           <span className="material-symbols-outlined">add_circle</span>
           Add Skill
         </button>
       </div>
 
-      <div className="card card-padding">
-        <div className="skills-main-layout">
-          {/* Main Skills Grid */}
-          <div className="skill-groups-grid">
-            {skillGroups.map((group) => (
-              <div key={group._id} className="skill-group-card">
-                <div className="skill-group-header">
-                  <h5 className="skills-group-title">{group.title}</h5>
-                  <div className="group-actions">
-                    <button className="btn-icon-small" onClick={() => {
-                      setEditingGroup(group);
-                      setGroupFormData({ title: group.title, skillsString: group.skills.join(", ") });
-                      setIsGroupModalOpen(true);
-                    }}>
-                      <span className="material-symbols-outlined">edit</span>
-                    </button>
-                    <button className="btn-icon-small btn-icon-danger" onClick={() => deleteGroup(group._id)}>
-                      <span className="material-symbols-outlined">delete</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="skills-tags">
-                  {group.skills.map((s, i) => (
-                    <div key={i} className="skill-tag">{s}</div>
-                  ))}
-                </div>
-              </div>
-            ))}
+      {/* 70 / 30 Two-Column Dashboard Layout */}
+      <div className="skills-dashboard-layout">
+        {/* Left Main Panel: Technical Skills (70%) */}
+        <div className="skills-main-panel">
+          <div className="panel-header-row">
+            <h4 className="panel-title">Technical Skills</h4>
           </div>
 
-          {/* Profiles Sidebar */}
-          <div className="profiles-sidebar">
-            <div className="profile-header-row">
-              <h5 className="skills-group-title">Coding Profiles</h5>
-              <button className="btn-tiny-link" onClick={() => {
-                setProfileFormData([...codingProfiles]);
-                setIsProfileModalOpen(true);
-              }}>Manage Profiles</button>
+          {skillGroups.length === 0 ? (
+            <div className="empty-panel-box">
+              <span className="material-symbols-outlined icon-large">psychology_alt</span>
+              <p>No skills added yet.</p>
+              <button className="btn-primary-action" onClick={openAddGroupModal}>
+                + Add Skill
+              </button>
             </div>
-            <div className="profile-list">
-              {codingProfiles.map((p) => (
-                <div key={p._id} className="profile-card" onClick={() => window.open(p.url, '_blank')}>
-                  <div className="profile-info-main">
-                    <div className="profile-icon">
-                      <span className={`material-symbols-outlined profile-symbol-${p.color}`}>
-                        {p.icon || 'code'}
-                      </span>
+          ) : (
+            <div className="skill-categories-grid">
+              {skillGroups.map((group) => (
+                <div key={group._id} className="skill-category-card">
+                  <div className="category-card-header">
+                    <h5 className="category-title">{group.title}</h5>
+                    <div className="category-actions">
+                      <button
+                        className="btn-icon-action edit"
+                        onClick={() => openEditGroupModal(group)}
+                        title="Edit category"
+                      >
+                        <span className="material-symbols-outlined">edit</span>
+                      </button>
+                      <button
+                        className="btn-icon-action delete"
+                        onClick={() => deleteGroup(group._id)}
+                        title="Delete category"
+                      >
+                        <span className="material-symbols-outlined">delete</span>
+                      </button>
                     </div>
-                    <span className="profile-name">{p.platform}</span>
                   </div>
-                  <span className="material-symbols-outlined profile-arrow">chevron_right</span>
+                  <div className="skill-chips-row">
+                    {Array.isArray(group.skills) && group.skills.length > 0 ? (
+                      group.skills.map((s, i) => (
+                        <span key={i} className="skill-chip-item">
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="empty-skills-text">No skills in this category</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Right Side Panel: Coding Profiles (30%) */}
+        <div className="profiles-side-panel">
+          <div className="panel-header-row">
+            <h4 className="panel-title">Coding Profiles</h4>
+            <button className="btn-manage-profiles" onClick={openManageProfilesModal}>
+              Manage Profiles
+            </button>
           </div>
+
+          {codingProfiles.length === 0 ? (
+            <div className="empty-panel-box">
+              <span className="material-symbols-outlined icon-large">public_off</span>
+              <p>No coding profiles added yet.</p>
+              <button className="btn-primary-action" onClick={openManageProfilesModal}>
+                Manage Profiles
+              </button>
+            </div>
+          ) : (
+            <div className="profiles-list-wrapper">
+              {codingProfiles.map((p, index) => {
+                const iconName = getPlatformIcon(p.platform, p.icon);
+                return (
+                  <div
+                    key={p._id || `${p.platform}-${index}`}
+                    className="profile-row-item"
+                  >
+                    <div className="profile-row-main">
+                      <div className="profile-platform-icon">
+                        <span className={`material-symbols-outlined symbol-${p.color || 'blue'}`}>
+                          {iconName}
+                        </span>
+                      </div>
+                      <span className="profile-platform-name">{p.platform}</span>
+                    </div>
+
+                    <div className="profile-row-actions">
+                      <button
+                        type="button"
+                        className="btn-icon-action edit"
+                        onClick={() => openQuickEditProfile(index)}
+                        title="Edit Profile"
+                      >
+                        <span className="material-symbols-outlined">edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icon-action open-link"
+                        onClick={() => p.url && window.open(p.url.startsWith('http') ? p.url : `https://${p.url}`, '_blank')}
+                        title={`Open ${p.platform} Profile`}
+                      >
+                        <span className="material-symbols-outlined">open_in_new</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icon-action delete"
+                        onClick={() => deleteSingleProfile(index)}
+                        title="Delete Profile"
+                      >
+                        <span className="material-symbols-outlined">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* --- QUICK EDIT SINGLE PROFILE MODAL --- */}
+      <Modal
+        title="Edit Coding Profile"
+        isOpen={isSingleProfileModalOpen}
+        onClose={() => setIsSingleProfileModalOpen(false)}
+        onSave={handleSaveSingleProfile}
+        disabled={isSaving}
+      >
+        <div className="quick-profile-edit-form">
+          <div className="form-field">
+            <label className="form-subtitle">Platform Name *</label>
+            <input
+              className="form-input"
+              placeholder="e.g. HackerRank, LeetCode"
+              value={singleProfileEdit.platform}
+              onChange={(e) => setSingleProfileEdit({ ...singleProfileEdit, platform: e.target.value })}
+            />
+          </div>
+          <div className="form-field" style={{ marginTop: '1.25rem' }}>
+            <label className="form-subtitle">Profile URL *</label>
+            <input
+              className="form-input"
+              placeholder="https://hackerrank.com/profile"
+              value={singleProfileEdit.url}
+              onChange={(e) => setSingleProfileEdit({ ...singleProfileEdit, url: e.target.value })}
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* --- MANAGE PROFILES MODAL --- */}
       <Modal 
@@ -191,18 +384,26 @@ const SkillsSection = () => {
                 <div key={index} className="profile-edit-item">
                   <div className="profile-edit-info">
                     <span className="material-symbols-outlined">public</span>
-                    <p>{profile.platform}</p>
                   </div>
-                  <input 
-                    className="form-input-compact" 
-                    value={profile.url} 
-                    onChange={(e) => {
-                      const updated = [...profileFormData];
-                      updated[index].url = e.target.value;
-                      setProfileFormData(updated);
-                    }} 
-                  />
-                  <button className="btn-remove-profile" onClick={() => removeProfileFromList(index)}>
+                  <div className="profile-inputs-flex">
+                    <input 
+                      className="form-input-compact platform-input"
+                      placeholder="Platform Name"
+                      value={profile.platform} 
+                      onChange={(e) => updateProfileInList(index, 'platform', e.target.value)}
+                    />
+                    <input 
+                      className="form-input-compact url-input"
+                      placeholder="Profile URL"
+                      value={profile.url} 
+                      onChange={(e) => updateProfileInList(index, 'url', e.target.value)}
+                    />
+                  </div>
+                  <button
+                    className="btn-remove-profile"
+                    onClick={() => removeProfileFromList(index)}
+                    title="Delete Profile"
+                  >
                     <span className="material-symbols-outlined">delete</span>
                   </button>
                 </div>
@@ -215,7 +416,7 @@ const SkillsSection = () => {
             <div className="add-profile-grid">
               <input 
                 className="form-input" 
-                placeholder="Platform Name (e.g. GitHub)" 
+                placeholder="Platform Name (e.g. HackerRank)" 
                 value={newProfile.platform}
                 onChange={(e) => setNewProfile({...newProfile, platform: e.target.value})}
               />
@@ -234,7 +435,7 @@ const SkillsSection = () => {
         </div>
       </Modal>
 
-      {/* --- SKILL GROUP MODAL --- */}
+      {/* --- SKILL CATEGORY MODAL --- */}
       <Modal 
         title={editingGroup ? "Edit Category" : "Add Category"} 
         isOpen={isGroupModalOpen} 
@@ -243,19 +444,19 @@ const SkillsSection = () => {
         disabled={isSaving}
       >
         <div className="form-field">
-          <label className="form-subtitle">Category Title</label>
+          <label className="form-subtitle">Category Title *</label>
           <input 
             className="form-input" 
-            placeholder="e.g. Frontend Development"
+            placeholder="e.g. Languages & Core"
             value={groupFormData.title} 
             onChange={e => setGroupFormData({...groupFormData, title: e.target.value})} 
           />
         </div>
-        <div className="form-field" style={{ marginTop: '1.5rem' }}>
-          <label className="form-subtitle">Skills (Comma Separated)</label>
+        <div className="form-field" style={{ marginTop: '1.25rem' }}>
+          <label className="form-subtitle">Skills (Comma Separated) *</label>
           <textarea 
             className="form-textarea" 
-            placeholder="React, Vue, Next.js..."
+            placeholder="JavaScript, Java, Python, SQL"
             rows={4} 
             value={groupFormData.skillsString} 
             onChange={e => setGroupFormData({...groupFormData, skillsString: e.target.value})} 

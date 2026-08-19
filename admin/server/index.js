@@ -84,6 +84,7 @@ const connectDB = async () => {
         dbConnected = true;
         console.log("MongoDB Connected Successfully");
         await initFeaturedProjects();
+        await Certification.syncIndexes().catch(e => console.log("Cert syncIndexes notice:", e.message));
     } catch (error) {
         console.error("MongoDB Connection Error:", error.message);
         throw error;
@@ -231,19 +232,24 @@ app.post('/api/update/education', requireAuth, async (req, res) => {
 });
 
 // --- 3. PROJECT ROUTES ---
+const ALLOWED_CATEGORIES = ['Full Stack', 'Frontend', 'Backend', 'AI / ML', 'Other'];
+
 app.get('/api/projects', async (req, res) => {
   try {
     const { category, featured } = req.query;
 
-    if (featured === 'true') {
-      const featuredProjects = await projectModel.find({ isFeatured: true })
-        .sort({ featuredOrder: 1, createdAt: -1 })
-        .limit(3);
-      return res.status(200).json(featuredProjects);
+    let query = {};
+    if (category && category !== 'All' && category !== 'All Types') {
+      query.category = category;
     }
 
-    let query = (category && category !== 'All') ? { category } : {};
-    const projects = await projectModel.find(query).sort({ isFeatured: -1, featuredOrder: 1, createdAt: -1 });
+    const projects = await projectModel.find(query).sort({ displayPriority: 1, createdAt: -1 });
+
+    if (featured === 'true') {
+      const featuredProjects = projects.filter(p => p.displayPriority >= 1 && p.displayPriority <= 3);
+      return res.status(200).json(featuredProjects.length > 0 ? featuredProjects : projects.slice(0, 3));
+    }
+
     res.status(200).json(projects);
   } catch (err) {
     res.status(500).json({ message: "Error fetching projects", error: err.message });
@@ -252,12 +258,52 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects/save', requireAuth, async (req, res) => {
   try {
-    const { _id, title, description, imageUrl, category, codeUrl, demoUrl, tags, techStack, isFeatured, featuredOrder } = req.body;
+    const { _id, title, description, imageUrl, category, codeUrl, demoUrl, techStack, displayPriority, isVisible } = req.body;
     const targetId = (_id && mongoose.Types.ObjectId.isValid(_id)) ? _id : null;
 
+    // Field Validation
+    const cleanTitle = typeof title === 'string' ? title.trim() : '';
+    if (!cleanTitle) {
+      return res.status(400).json({ success: false, message: "Project title is required", field: "title" });
+    }
+    if (cleanTitle.length > 120) {
+      return res.status(400).json({ success: false, message: "Project title cannot exceed 120 characters", field: "title" });
+    }
+
+    const cleanCategory = typeof category === 'string' ? category.trim() : 'Full Stack';
+    if (!ALLOWED_CATEGORIES.includes(cleanCategory)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid category. Must be one of: ${ALLOWED_CATEGORIES.join(', ')}`,
+        field: "category"
+      });
+    }
+
+    const cleanDescription = typeof description === 'string' ? description.trim() : '';
+    if (!cleanDescription) {
+      return res.status(400).json({ success: false, message: "Summary description is required", field: "description" });
+    }
+    if (cleanDescription.length > 2000) {
+      return res.status(400).json({ success: false, message: "Description cannot exceed 2000 characters", field: "description" });
+    }
+
+    // Display Priority Validation
+    const numericPriority = Math.max(1, parseInt(displayPriority, 10) || 1);
+
+    // Normalize Tech Stack
+    let parsedTechStack = [];
+    if (Array.isArray(techStack)) {
+      parsedTechStack = techStack.map(t => String(t).trim()).filter(Boolean);
+    } else if (typeof techStack === 'string') {
+      parsedTechStack = techStack.split(',').map(t => t.trim()).filter(Boolean);
+    }
+    // Remove duplicates preserving order
+    parsedTechStack = [...new Set(parsedTechStack)];
+
+    // Uniqueness Duplicate Check
     const dupCheck = await checkProjectUniqueness(
-      projectModel, 
-      { title, codeUrl, demoUrl, imageUrl }, 
+      projectModel,
+      { title: cleanTitle, codeUrl, demoUrl, imageUrl },
       targetId
     );
 
@@ -269,52 +315,20 @@ app.post('/api/projects/save', requireAuth, async (req, res) => {
       });
     }
 
-    let existingDoc = targetId ? await projectModel.findById(targetId) : null;
-    let shouldBeFeatured = Boolean(isFeatured);
-
-    if (shouldBeFeatured && (!existingDoc || !existingDoc.isFeatured)) {
-      const currentFeaturedCount = await projectModel.countDocuments({ 
-        isFeatured: true, 
-        _id: { $ne: targetId } 
-      });
-      if (currentFeaturedCount >= 3) {
-        return res.status(409).json({
-          success: false,
-          message: "Only 3 featured projects are allowed. Please remove one featured project before selecting another."
-        });
-      }
-    }
-
-    let finalFeaturedOrder = (existingDoc && existingDoc.isFeatured) ? existingDoc.featuredOrder : null;
-    if (shouldBeFeatured) {
-      if (typeof featuredOrder === 'number' && featuredOrder >= 1 && featuredOrder <= 3) {
-        finalFeaturedOrder = featuredOrder;
-      } else if (!finalFeaturedOrder) {
-        const currentFeaturedCount = await projectModel.countDocuments({ 
-          isFeatured: true, 
-          _id: { $ne: targetId } 
-        });
-        finalFeaturedOrder = currentFeaturedCount + 1;
-      }
-    } else {
-      finalFeaturedOrder = null;
-    }
-
     const payload = {
-      title,
+      title: cleanTitle,
       normalizedTitle: dupCheck.normalizedTitle,
-      description,
-      imageUrl,
+      description: cleanDescription,
+      imageUrl: imageUrl || '',
       imageHash: dupCheck.imageHash,
-      category,
-      codeUrl,
+      category: cleanCategory,
+      codeUrl: codeUrl ? codeUrl.trim() : '',
       normalizedCodeUrl: dupCheck.normalizedCodeUrl,
-      demoUrl,
+      demoUrl: demoUrl ? demoUrl.trim() : '',
       normalizedDemoUrl: dupCheck.normalizedDemoUrl,
-      tags,
-      techStack,
-      isFeatured: shouldBeFeatured,
-      featuredOrder: finalFeaturedOrder
+      techStack: parsedTechStack,
+      displayPriority: numericPriority,
+      isVisible: typeof isVisible === 'boolean' ? isVisible : true
     };
 
     let result;
@@ -325,89 +339,78 @@ app.post('/api/projects/save', requireAuth, async (req, res) => {
       await result.save();
     }
 
-    await compactFeaturedOrders();
-    res.status(200).json(result);
+    // Normalize all project priorities into a clean 1..N sequence
+    const allProjectsList = await projectModel.find().sort({ displayPriority: 1, createdAt: 1 });
+    const targetIdStr = result._id.toString();
+    const otherProjects = allProjectsList.filter(p => p._id.toString() !== targetIdStr);
+    
+    const insertIdx = Math.min(Math.max(0, numericPriority - 1), otherProjects.length);
+    otherProjects.splice(insertIdx, 0, result);
+
+    for (let i = 0; i < otherProjects.length; i++) {
+      if (otherProjects[i].displayPriority !== i + 1) {
+        await projectModel.findByIdAndUpdate(otherProjects[i]._id, { displayPriority: i + 1 });
+      }
+    }
+
+    const updatedResult = await projectModel.findById(result._id);
+    res.status(200).json(updatedResult);
   } catch (err) {
     if (err.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "Project already exists. Please use a unique project."
+        message: "Project already exists. Please use a unique title."
       });
     }
     res.status(400).json({ success: false, message: "Operation failed", error: err.message });
   }
 });
 
-app.patch('/api/projects/:id/feature', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid project ID" });
-    }
-    const project = await projectModel.findById(id);
-    if (!project) return res.status(404).json({ message: "Project not found" });
-
-    const newFeaturedState = !project.isFeatured;
-
-    if (newFeaturedState) {
-      const currentFeaturedCount = await projectModel.countDocuments({
-        isFeatured: true,
-        _id: { $ne: id }
-      });
-      if (currentFeaturedCount >= 3) {
-        return res.status(409).json({
-          success: false,
-          message: "Only 3 featured projects are allowed. Please remove one featured project before selecting another."
-        });
-      }
-      project.isFeatured = true;
-      project.featuredOrder = currentFeaturedCount + 1;
-    } else {
-      project.isFeatured = false;
-      project.featuredOrder = null;
-    }
-
-    await project.save();
-    await compactFeaturedOrders();
-
-    const updatedProjects = await projectModel.find().sort({ isFeatured: -1, featuredOrder: 1, createdAt: -1 });
-    res.json({ success: true, project, projects: updatedProjects });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-app.post('/api/projects/reorder-featured', requireAuth, async (req, res) => {
-  try {
-    const { orderedIds } = req.body;
-    if (!Array.isArray(orderedIds)) {
-      return res.status(400).json({ message: "orderedIds array is required" });
-    }
-    for (let i = 0; i < orderedIds.length && i < 3; i++) {
-      const id = orderedIds[i];
-      if (mongoose.Types.ObjectId.isValid(id)) {
-        await projectModel.findByIdAndUpdate(id, { isFeatured: true, featuredOrder: i + 1 });
-      }
-    }
-    await compactFeaturedOrders();
-    const updatedProjects = await projectModel.find().sort({ isFeatured: -1, featuredOrder: 1, createdAt: -1 });
-    res.json({ success: true, projects: updatedProjects });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
 app.delete('/api/projects/:id', requireAuth, async (req, res) => {
   try {
-    const project = await projectModel.findById(req.params.id);
-    const wasFeatured = project ? project.isFeatured : false;
     await projectModel.findByIdAndDelete(req.params.id);
-    if (wasFeatured) {
-      await compactFeaturedOrders();
+    // Normalize remaining project priorities into clean 1..N sequence
+    const remaining = await projectModel.find().sort({ displayPriority: 1, createdAt: 1 });
+    for (let i = 0; i < remaining.length; i++) {
+      if (remaining[i].displayPriority !== i + 1) {
+        await projectModel.findByIdAndUpdate(remaining[i]._id, { displayPriority: i + 1 });
+      }
     }
     res.json({ message: "Project deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/projects/reorder', requireAuth, async (req, res) => {
+  try {
+    const { projectId, newPriority } = req.body;
+    if (!projectId || !newPriority) {
+      return res.status(400).json({ success: false, message: 'projectId and newPriority required' });
+    }
+
+    const allProjectsList = await projectModel.find().sort({ displayPriority: 1, createdAt: 1 });
+    const targetProject = allProjectsList.find(p => p._id.toString() === projectId.toString());
+
+    if (!targetProject) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    const otherProjects = allProjectsList.filter(p => p._id.toString() !== projectId.toString());
+    const targetPriorityNum = Math.min(Math.max(1, parseInt(newPriority, 10) || 1), allProjectsList.length);
+
+    otherProjects.splice(targetPriorityNum - 1, 0, targetProject);
+
+    for (let i = 0; i < otherProjects.length; i++) {
+      if (otherProjects[i].displayPriority !== i + 1) {
+        await projectModel.findByIdAndUpdate(otherProjects[i]._id, { displayPriority: i + 1 });
+      }
+    }
+
+    const updatedProjects = await projectModel.find().sort({ displayPriority: 1, createdAt: 1 });
+    res.status(200).json({ success: true, projects: updatedProjects });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Unable to update project order', error: err.message });
   }
 });
 
@@ -553,68 +556,113 @@ app.delete('/api/resumes/:id', requireAuth, async (req, res) => {
 });
 
 // --- 7. CERTIFICATION ROUTES ---
+const handleCertSaveRequest = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const titleClean = (body.title || '').trim();
+    if (!titleClean) {
+      return res.status(400).json({
+        success: false,
+        message: "Certification title is required",
+        errors: [{ field: "title", message: "Certification title is required" }]
+      });
+    }
+
+    const orgClean = (body.issuingOrganization || body.issuer || '').trim();
+    const dateClean = (body.issueDate || '').trim();
+    const filePayload = body.certificateFileUrl || body.imageUrl || '';
+    const rawId = body._id || req.params.id;
+    const targetId = (rawId && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
+    const finalVis = body.isVisible !== undefined ? Boolean(body.isVisible) : (body.isActive !== undefined ? Boolean(body.isActive) : true);
+    const parsedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
+
+    const payload = {
+      title: titleClean,
+      issuingOrganization: orgClean,
+      issuer: orgClean,
+      issueDate: dateClean,
+      credentialId: (body.credentialId || '').trim(),
+      verificationUrl: (body.verificationUrl || '').trim(),
+      certificateFileUrl: filePayload,
+      imageUrl: filePayload,
+      displayOrder: parsedOrder,
+      order: parsedOrder,
+      isVisible: finalVis,
+      isActive: finalVis
+    };
+
+    let result;
+    if (targetId) {
+      result = await Certification.findByIdAndUpdate(targetId, payload, { new: true });
+      if (!result) {
+        result = new Certification(payload);
+        await result.save();
+      }
+    } else {
+      result = new Certification(payload);
+      await result.save();
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Certification Save Error:", err);
+    if (err.code === 11000) {
+      try {
+        await Certification.collection.dropIndexes().catch(() => {});
+        await Certification.syncIndexes().catch(() => {});
+        const body = req.body || {};
+        const rawId = body._id || req.params.id;
+        const targetId = (rawId && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
+        const parsedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
+        const payload = {
+          title: (body.title || 'Certification').trim(),
+          issuingOrganization: (body.issuingOrganization || body.issuer || '').trim(),
+          issuer: (body.issuingOrganization || body.issuer || '').trim(),
+          issueDate: (body.issueDate || '').trim(),
+          credentialId: (body.credentialId || '').trim(),
+          verificationUrl: (body.verificationUrl || '').trim(),
+          certificateFileUrl: body.certificateFileUrl || body.imageUrl || '',
+          imageUrl: body.certificateFileUrl || body.imageUrl || '',
+          displayOrder: parsedOrder,
+          order: parsedOrder,
+          isVisible: body.isVisible !== undefined ? Boolean(body.isVisible) : true,
+          isActive: body.isVisible !== undefined ? Boolean(body.isVisible) : true
+        };
+        let retryResult;
+        if (targetId) {
+          retryResult = await Certification.findByIdAndUpdate(targetId, payload, { new: true });
+        }
+        if (!retryResult) {
+          retryResult = new Certification(payload);
+          await retryResult.save();
+        }
+        return res.status(200).json(retryResult);
+      } catch (retryErr) {
+        console.error("Retry after index drop failed:", retryErr.message);
+      }
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: err.message || "Failed to save certification",
+      errors: [{ field: "general", message: err.message || "Operation failed" }]
+    });
+  }
+};
+
 app.get('/api/certifications', async (req, res) => {
   try {
-    const certs = await Certification.find().sort({ displayOrder: 1, createdAt: -1 });
+    const certs = await Certification.find().sort({ displayOrder: 1, order: 1, createdAt: -1, _id: 1 });
     res.json(certs);
   } catch (err) {
     res.status(500).json({ message: "Error fetching certifications", error: err.message });
   }
 });
 
-app.post('/api/certifications/save', requireAuth, async (req, res) => {
-  try {
-    const { _id, title, issuer, issueDate, expirationDate, credentialId, verificationUrl, imageUrl, displayOrder, isActive } = req.body;
-    const targetId = (_id && mongoose.Types.ObjectId.isValid(_id)) ? _id : null;
-
-    const dupCheck = await checkCertificateUniqueness(
-      Certification,
-      { title, issuer, imageUrl, verificationUrl },
-      targetId
-    );
-
-    if (dupCheck.isDuplicate) {
-      return res.status(409).json({
-        success: false,
-        message: dupCheck.message,
-        field: dupCheck.field
-      });
-    }
-
-    const payload = {
-      title,
-      normalizedTitle: dupCheck.normalizedTitle,
-      issuer,
-      normalizedIssuer: dupCheck.normalizedIssuer,
-      issueDate,
-      expirationDate,
-      credentialId,
-      verificationUrl,
-      normalizedVerificationUrl: dupCheck.normalizedVerificationUrl,
-      imageUrl,
-      fileHash: dupCheck.fileHash,
-      displayOrder,
-      isActive
-    };
-
-    let result;
-    if (targetId) {
-      result = await Certification.findByIdAndUpdate(targetId, payload, { new: true, runValidators: true });
-    } else {
-      result = new Certification(payload);
-      await result.save();
-    }
-    res.status(200).json(result);
-  } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "This certificate file has already been uploaded."
-      });
-    }
-    res.status(400).json({ success: false, message: "Operation failed", error: err.message });
-  }
-});
+app.post('/api/certifications/save', requireAuth, handleCertSaveRequest);
+app.post('/api/certifications', requireAuth, handleCertSaveRequest);
+app.put('/api/certifications/save', requireAuth, handleCertSaveRequest);
+app.put('/api/certifications/:id', requireAuth, handleCertSaveRequest);
 
 app.delete('/api/certifications/:id', requireAuth, async (req, res) => {
   try {
@@ -629,7 +677,9 @@ app.patch('/api/certifications/:id/status', requireAuth, async (req, res) => {
   try {
     const cert = await Certification.findById(req.params.id);
     if (!cert) return res.status(404).json({ message: "Certification not found" });
-    cert.isActive = !cert.isActive;
+    const newStatus = !(cert.isVisible !== false && cert.isActive !== false);
+    cert.isVisible = newStatus;
+    cert.isActive = newStatus;
     await cert.save();
     res.json(cert);
   } catch (err) {
@@ -649,7 +699,8 @@ const validateExperienceData = (data) => {
   if (!data.startDate || typeof data.startDate !== 'string' || !data.startDate.trim()) {
     errors.push("Start date is required.");
   }
-  if (!data.currentlyWorking) {
+  const isOngoing = Boolean(data.currentlyWorking || data.isCurrentlyWorking);
+  if (!isOngoing) {
     if (!data.endDate || typeof data.endDate !== 'string' || !data.endDate.trim()) {
       errors.push("End date is required when not currently working.");
     } else if (data.startDate && data.endDate) {
@@ -705,43 +756,42 @@ const handleSaveExperience = async (req, res) => {
     }
 
     const { _id, ...expData } = req.body;
+
+    const rawTech = expData.technologies || expData.techStack || expData.technologyStack || expData.tech || expData.tags || expData.skills || [];
+    const techArray = Array.isArray(rawTech)
+      ? rawTech.flatMap(t => typeof t === 'string' ? t.split(',') : (t?.name || String(t))).map(s => typeof s === 'string' ? s.trim() : '').filter(Boolean)
+      : typeof rawTech === 'string'
+      ? rawTech.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    expData.technologies = techArray;
+    expData.techStack = techArray;
+
+    const rawTargetId = _id || req.params.id;
+    const targetId = (rawTargetId && mongoose.Types.ObjectId.isValid(rawTargetId)) ? rawTargetId : null;
+
     let result;
-    if (_id && mongoose.Types.ObjectId.isValid(_id)) {
-      result = await Experience.findByIdAndUpdate(_id, expData, { new: true, runValidators: true });
-      if (!result) return res.status(404).json({ message: "Experience ID not found" });
+    if (targetId) {
+      result = await Experience.findByIdAndUpdate(targetId, expData, { new: true, runValidators: true });
+      if (!result) {
+        result = new Experience(expData);
+        await result.save();
+      }
     } else {
       result = new Experience(expData);
       await result.save();
     }
     res.status(200).json(result);
   } catch (err) {
+    console.error("Experience Save Error:", err);
     res.status(400).json({ message: "Operation failed", error: err.message });
   }
 };
 
 app.post('/api/experiences/save', requireAuth, handleSaveExperience);
 app.post('/api/experiences', requireAuth, handleSaveExperience);
-
-// PUT /api/experiences/:id (Protected - Admin)
-app.put('/api/experiences/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid experience ID" });
-    }
-
-    const validationErrors = validateExperienceData(req.body);
-    if (validationErrors.length > 0) {
-      return res.status(400).json({ message: validationErrors.join(" ") });
-    }
-
-    const updated = await Experience.findByIdAndUpdate(id, req.body, { new: true, runValidators: true });
-    if (!updated) return res.status(404).json({ message: "Experience record not found" });
-    res.json(updated);
-  } catch (err) {
-    res.status(400).json({ message: "Update failed", error: err.message });
-  }
-});
+app.put('/api/experiences/save', requireAuth, handleSaveExperience);
+app.put('/api/experiences/:id', requireAuth, handleSaveExperience);
 
 // DELETE /api/experiences/:id (Protected - Admin)
 app.delete('/api/experiences/:id', requireAuth, async (req, res) => {
@@ -789,32 +839,40 @@ app.delete('/api/experiences/:id', requireAuth, async (req, res) => {
 
 app.get('/api/resume/download', async (req, res) => {
   try {
-    // 1. Get the resume (Active one first, otherwise the latest one)
+    // 1. Get the resume (Active one first, otherwise the latest uploaded one)
     let activeResume = await Resume.findOne({ isActive: true });
     if (!activeResume) {
       activeResume = await Resume.findOne().sort({ uploadedAt: -1 });
     }
 
+    const resumeSource = activeResume ? (activeResume.url || activeResume.fileData) : null;
+
     // 2. If absolutely no resume exists, return 404
-    if (!activeResume || !activeResume.fileData) {
+    if (!activeResume || !resumeSource) {
       return res.status(404).json({ message: "No resume found" });
     }
 
-    // 3. Clean the Base64 String (Removes 'data:application/pdf;base64,' if present)
-    const rawData = activeResume.fileData;
+    // 3. Handle HTTP/HTTPS file URLs
+    if (typeof resumeSource === 'string' && (resumeSource.startsWith('http://') || resumeSource.startsWith('https://'))) {
+      return res.redirect(resumeSource);
+    }
+
+    // 4. Clean the Base64 String (Removes 'data:application/pdf;base64,' if present)
+    const rawData = resumeSource;
     const base64Data = rawData.includes(',') ? rawData.split(',')[1] : rawData;
 
-    // 4. Convert to Buffer
+    // 5. Convert to Buffer
     const pdfBuffer = Buffer.from(base64Data, 'base64');
+    const downloadFileName = activeResume.fileName || 'Resume.pdf';
 
-    // 5. Set explicit headers
+    // 6. Set explicit headers
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename=Resume.pdf',
+      'Content-Disposition': `attachment; filename="${downloadFileName}"`,
       'Content-Length': pdfBuffer.length,
     });
 
-    // 6. Send the raw buffer
+    // 7. Send the raw buffer
     return res.status(200).send(pdfBuffer);
 
   } catch (err) {

@@ -7,6 +7,8 @@ import './index.css';
 const PRIMARY_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api';
 const LOCAL_API_URL = 'http://localhost:3002/api';
 
+const CATEGORIES = ['Full Stack', 'Frontend', 'Backend', 'AI / ML', 'Other'];
+
 const apiCall = async (method, endpoint = '', data = null) => {
   try {
     const url = `${PRIMARY_API_URL}${endpoint}`;
@@ -23,40 +25,44 @@ const apiCall = async (method, endpoint = '', data = null) => {
 const ProjectsSection = () => {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [updatingPriorityId, setUpdatingPriorityId] = useState(null);
+
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
+
   const [errors, setErrors] = useState({});
-  
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All Types");
+  const [globalError, setGlobalError] = useState('');
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All Types');
+  const [sortBy, setSortBy] = useState('priority_asc');
 
   const [projectForm, setProjectForm] = useState({
-    title: "",
-    description: "",
-    imageUrl: "",
-    codeUrl: "",
-    demoUrl: "",
-    category: "Full Stack",
-    isFeatured: false
+    title: '',
+    category: 'Full Stack',
+    description: '',
+    imageUrl: '',
+    techStackInput: '',
+    displayPriority: 1,
+    codeUrl: '',
+    demoUrl: '',
+    isVisible: true,
   });
-
-  const [tagsInput, setTagsInput] = useState("");
-  const [techStackInput, setTechStackInput] = useState("");
-
-  const featuredProjects = projects
-    .filter(p => p.isFeatured)
-    .sort((a, b) => (a.featuredOrder || 99) - (b.featuredOrder || 99));
-  const featuredCount = featuredProjects.length;
 
   const fetchProjects = async () => {
     try {
       setIsLoading(true);
+      setGlobalError('');
       const res = await apiCall('get', '/projects');
-      setProjects(Array.isArray(res.data) ? res.data : []);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setProjects(data);
     } catch (err) {
-      console.error("Fetch Error:", err.message);
+      console.error('Fetch Error:', err.message);
       setProjects([]);
+      setGlobalError('Unable to load projects right now. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -66,131 +72,182 @@ const ProjectsSection = () => {
     fetchProjects();
   }, []);
 
-  const toggleFeature = async (project) => {
-    if (!project.isFeatured && featuredCount >= 3) {
-      alert("Only 3 featured projects are allowed. Please remove one featured project before selecting another.");
-      return;
-    }
-    try {
-      const res = await apiCall('patch', `/projects/${project._id}/feature`);
-      if (res.data?.projects) {
-        setProjects(res.data.projects);
-      } else {
-        await fetchProjects();
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || "Failed to update feature status.";
-      alert(msg);
-    }
-  };
-
-  const moveFeatured = async (currentIndex, direction) => {
-    const newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= featuredProjects.length) return;
-    const newOrder = [...featuredProjects];
-    const temp = newOrder[currentIndex];
-    newOrder[currentIndex] = newOrder[newIndex];
-    newOrder[newIndex] = temp;
-    const orderedIds = newOrder.map(p => p._id);
-    try {
-      const res = await apiCall('post', '/projects/reorder-featured', { orderedIds });
-      if (res.data?.projects) {
-        setProjects(res.data.projects);
-      } else {
-        await fetchProjects();
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to reorder projects.");
-    }
-  };
-
   const validate = () => {
     const newErrors = {};
-    if (!projectForm.title?.trim()) newErrors.title = "Project title is required";
-    if (!projectForm.description?.trim()) newErrors.description = "A short description is required";
-    if (!projectForm.imageUrl) newErrors.imageUrl = "Project thumbnail is required";
-    if (!projectForm.category) newErrors.category = "Category is required";
-    if (!techStackInput.trim()) newErrors.techStack = "Add at least one technology";
-    if (!tagsInput.trim()) newErrors.tags = "Add at least one tag";
-    
+    const titleClean = projectForm.title?.trim();
+    if (!titleClean) {
+      newErrors.title = 'Project title is required';
+    } else if (titleClean.length > 120) {
+      newErrors.title = 'Project title cannot exceed 120 characters';
+    }
+
+    if (!projectForm.category) {
+      newErrors.category = 'Project category is required';
+    }
+
+    const descClean = projectForm.description?.trim();
+    if (!descClean) {
+      newErrors.description = 'Summary description is required';
+    } else if (descClean.length > 2000) {
+      newErrors.description = 'Description cannot exceed 2000 characters';
+    }
+
+    const priorityNum = parseInt(projectForm.displayPriority, 10);
+    if (isNaN(priorityNum) || priorityNum < 1) {
+      newErrors.displayPriority = 'Priority must be a positive integer';
+    }
+
+    if (projectForm.codeUrl?.trim() && !/^https?:\/\/.+/i.test(projectForm.codeUrl.trim())) {
+      newErrors.codeUrl = 'Enter a valid URL (e.g. https://github.com/user/repo)';
+    }
+
+    if (projectForm.demoUrl?.trim() && !/^https?:\/\/.+/i.test(projectForm.demoUrl.trim())) {
+      newErrors.demoUrl = 'Enter a valid URL (e.g. https://example.com)';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const openAddModal = () => {
     setEditingProject(null);
-    setProjectForm({ 
-      title: "", 
-      description: "", 
-      imageUrl: "", 
-      codeUrl: "", 
-      demoUrl: "", 
-      category: "Full Stack",
-      isFeatured: false
+    setProjectForm({
+      title: '',
+      category: 'Full Stack',
+      description: '',
+      imageUrl: '',
+      techStackInput: '',
+      displayPriority: projects.length + 1,
+      codeUrl: '',
+      demoUrl: '',
+      isVisible: true,
     });
-    setTagsInput("");
-    setTechStackInput("");
     setErrors({});
-    setIsModalOpen(true);
+    setIsCreateProjectOpen(true);
   };
 
   const openEditModal = (project) => {
-    setEditingProject(project); 
+    setSelectedProject(project);
+    setEditingProject(project);
     setProjectForm({
-      title: project.title,
-      description: project.description,
-      imageUrl: project.imageUrl,
-      codeUrl: project.codeUrl || "",
-      demoUrl: project.demoUrl || "",
-      category: project.category || "Full Stack",
-      isFeatured: Boolean(project.isFeatured)
+      title: project.title || '',
+      category: project.category || 'Full Stack',
+      description: project.description || '',
+      imageUrl: project.imageUrl || '',
+      techStackInput: Array.isArray(project.techStack) ? project.techStack.join(', ') : '',
+      displayPriority: project.displayPriority || 1,
+      codeUrl: project.codeUrl || '',
+      demoUrl: project.demoUrl || '',
+      isVisible: project.isVisible !== false,
     });
-    setTagsInput(project.tags ? project.tags.join(", ") : "");
-    setTechStackInput(project.techStack ? project.techStack.join(", ") : "");
     setErrors({});
-    setIsModalOpen(true);
+    setIsEditProjectOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsCreateProjectOpen(false);
+    setIsEditProjectOpen(false);
+    setEditingProject(null);
+    setSelectedProject(null);
+    setErrors({});
   };
 
   const handleSave = async () => {
-    if (validate()) {
-      if (projectForm.isFeatured && (!editingProject || !editingProject.isFeatured) && featuredCount >= 3) {
-        alert("Only 3 featured projects are allowed. Please remove one featured project before selecting another.");
-        return;
+    if (!validate() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const parsedTech = projectForm.techStackInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t !== '');
+
+    const payload = {
+      _id: editingProject ? editingProject._id : undefined,
+      title: projectForm.title.trim(),
+      category: projectForm.category,
+      description: projectForm.description.trim(),
+      imageUrl: projectForm.imageUrl,
+      techStack: parsedTech,
+      displayPriority: parseInt(projectForm.displayPriority, 10) || 1,
+      codeUrl: projectForm.codeUrl.trim(),
+      demoUrl: projectForm.demoUrl.trim(),
+      isVisible: projectForm.isVisible,
+    };
+
+    try {
+      await apiCall('post', '/projects/save', payload);
+      await fetchProjects();
+      closeModal();
+    } catch (err) {
+      const msg = editingProject
+        ? 'Failed to update project. Please try again.'
+        : 'Failed to create project. Please try again.';
+      setErrors((prev) => ({ ...prev, general: msg }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleVisibility = async (project) => {
+    try {
+      setUpdatingPriorityId(project._id);
+      setGlobalError('');
+      await apiCall('post', '/projects/save', {
+        _id: project._id,
+        title: project.title,
+        category: project.category,
+        description: project.description,
+        imageUrl: project.imageUrl,
+        techStack: project.techStack,
+        displayPriority: project.displayPriority,
+        codeUrl: project.codeUrl,
+        demoUrl: project.demoUrl,
+        isVisible: project.isVisible === false ? true : false,
+      });
+      await fetchProjects();
+    } catch (err) {
+      console.error('Visibility update error:', err.message);
+      setGlobalError('Failed to update project visibility. Please try again.');
+    } finally {
+      setUpdatingPriorityId(null);
+    }
+  };
+
+  const handlePriorityQuickChange = async (project, newPriority) => {
+    const pNum = parseInt(newPriority, 10);
+    if (isNaN(pNum) || pNum < 1 || pNum === project.displayPriority || updatingPriorityId) return;
+
+    try {
+      setUpdatingPriorityId(project._id);
+      setGlobalError('');
+      const res = await apiCall('post', '/projects/reorder', {
+        projectId: project._id,
+        newPriority: pNum,
+      });
+
+      if (res.data?.projects && Array.isArray(res.data.projects)) {
+        setProjects(res.data.projects);
+      } else {
+        await fetchProjects();
       }
-
-      const parsedTags = tagsInput.split(",").map(t => t.trim()).filter(t => t !== "");
-      const parsedTech = techStackInput.split(",").map(t => t.trim()).filter(t => t !== "");
-
-      const payload = {
-        ...projectForm,
-        tags: parsedTags,
-        techStack: parsedTech,
-        _id: editingProject ? editingProject._id : undefined
-      };
-
-      try {
-        await apiCall('post', '/projects/save', payload);
-        await fetchProjects(); 
-        setIsModalOpen(false);
-        setEditingProject(null);
-        setErrors({});
-      } catch (err) {
-        const msg = err.response?.data?.message || err.message || "Failed to save project.";
-        const field = err.response?.data?.field || "general";
-        setErrors(prev => ({ ...prev, [field]: msg, general: msg }));
-        alert(msg);
-      }
+    } catch (err) {
+      console.error('Priority update error:', err.message);
+      setGlobalError('Failed to update project order. Please try again.');
+      await fetchProjects();
+    } finally {
+      setUpdatingPriorityId(null);
     }
   };
 
   const deleteProject = async (id) => {
-    if (window.confirm("Permanent delete? This action cannot be undone.")) {
+    if (window.confirm('Permanent delete? This action cannot be undone.')) {
       try {
         await apiCall('delete', `/projects/${id}`);
         if (selectedProject?._id === id) setSelectedProject(null);
-        fetchProjects();
+        await fetchProjects();
       } catch (err) {
-        console.error("Delete error:", err.message);
+        console.error('Delete error:', err.message);
+        setGlobalError('Failed to delete project. Please try again.');
       }
     }
   };
@@ -198,429 +255,561 @@ const ProjectsSection = () => {
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
       const base64 = await fileToBase64(e.target.files[0]);
-      setProjectForm({ ...projectForm, imageUrl: base64 });
+      setProjectForm((prev) => ({ ...prev, imageUrl: base64 }));
     }
   };
 
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          project.category?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "All Types" || project.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Filter and Sort Projects
+  const filteredAndSortedProjects = React.useMemo(() => {
+    let list = projects.filter((project) => {
+      const matchesSearch =
+        project.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        project.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (Array.isArray(project.techStack) &&
+          project.techStack.some((t) => t.toLowerCase().includes(searchTerm.toLowerCase())));
+      const matchesCategory =
+        selectedCategory === 'All Types' || selectedCategory === 'All'
+          ? true
+          : project.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+
+    list.sort((a, b) => {
+      if (sortBy === 'priority_asc') {
+        return (a.displayPriority || 99) - (b.displayPriority || 99);
+      }
+      if (sortBy === 'priority_desc') {
+        return (b.displayPriority || 99) - (a.displayPriority || 99);
+      }
+      if (sortBy === 'newest') {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+      if (sortBy === 'oldest') {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      }
+      if (sortBy === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+      return 0;
+    });
+
+    return list;
+  }, [projects, searchTerm, selectedCategory, sortBy]);
+
+  // Calculated Statistics
+  const totalCount = projects.length;
+  const featuredCount = projects.filter((p) => p.displayPriority >= 1 && p.displayPriority <= 3).length;
+  const carouselCount = projects.filter((p) => p.displayPriority > 3).length;
+  const visibleCount = projects.filter((p) => p.isVisible !== false).length;
+
+  const isAnyModalOpen = isCreateProjectOpen || isEditProjectOpen;
 
   if (isLoading) {
     return (
-      <div className="loading-container" role="status" aria-label="Loading projects">
-        <div className="loading-spinner"></div>
-        <p className="loading-text">Loading Projects...</p>
-      </div>
+      <section className="section-container" id="projects">
+        <div className="section-title-row">
+          <div className="section-header">
+            <h3>Project Library</h3>
+            <p>Manage your portfolio projects, technology stack, and public display priority.</p>
+          </div>
+          <button className="btn-add-project" onClick={openAddModal}>
+            <span className="material-symbols-outlined">add_box</span>
+            New Project
+          </button>
+        </div>
+
+        {/* Skeleton Card Grid */}
+        <div className="projects-card-grid">
+          {[1, 2, 3, 4].map((n) => (
+            <div key={n} className="admin-project-card skeleton-card">
+              <div className="admin-card-header skeleton-pulse" />
+              <div className="admin-card-body">
+                <div className="skeleton-line skeleton-title skeleton-pulse" />
+                <div className="skeleton-line skeleton-desc skeleton-pulse" />
+                <div className="skeleton-line skeleton-chips skeleton-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     );
   }
 
   return (
     <section className="section-container" id="projects">
+      {/* Compact Page Header */}
       <div className="section-title-row">
         <div className="section-header">
-          <h3>
-            Project Library
-            <span className="featured-counter-badge">
-              Featured Projects: {featuredCount} / 3
-            </span>
-          </h3>
-          <p>Detailed overview of your engineering milestones and contributions.</p>
+          <h3>Project Library</h3>
+          <p>Manage your portfolio projects, technology stack, and public display priority.</p>
         </div>
         <button className="btn-add-project" onClick={openAddModal}>
           <span className="material-symbols-outlined">add_box</span>
-          Add Project
+          New Project
         </button>
       </div>
 
+      {globalError && (
+        <div className="global-error-banner" role="alert">
+          <span className="material-symbols-outlined">error</span>
+          {globalError}
+          <button className="btn-retry" onClick={fetchProjects}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Dynamic Summary Stats Row */}
+      <div className="project-stats-row">
+        <div className="project-stat-card">
+          <div className="stat-value">{String(totalCount).padStart(2, '0')}</div>
+          <div className="stat-label">Total Projects</div>
+        </div>
+        <div className="project-stat-card">
+          <div className="stat-value featured">{String(featuredCount).padStart(2, '0')}</div>
+          <div className="stat-label">Featured Showcase</div>
+        </div>
+        <div className="project-stat-card">
+          <div className="stat-value carousel">{String(carouselCount).padStart(2, '0')}</div>
+          <div className="stat-label">More Carousel</div>
+        </div>
+        <div className="project-stat-card">
+          <div className="stat-value visible">{String(visibleCount).padStart(2, '0')}</div>
+          <div className="stat-label">Public Visible</div>
+        </div>
+      </div>
+
+      {/* Search, Filter & Sort Toolbar */}
       <div className="projects-toolbar-row">
         <div className="search-input-wrapper">
           <span className="material-symbols-outlined search-icon">search</span>
-          <input 
-            type="text" 
-            className="search-input" 
-            placeholder="Search projects..." 
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search projects by title, category, or tech..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="filter-select-wrapper">
-          <select 
+          <select
             className="filter-select"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
-            <option value="All Types">All Types</option>
-            <option value="Full Stack">Full Stack</option>
-            <option value="Front End">Front End</option>
-            <option value="Back End">Back End</option>
+            <option value="All Types">All Categories</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sort-select-wrapper">
+          <select
+            className="filter-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="priority_asc">Display Priority ↑</option>
+            <option value="priority_desc">Display Priority ↓</option>
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="title">Title (A → Z)</option>
           </select>
         </div>
       </div>
 
+      {/* Project Card Grid */}
       <div className="projects-display-wrapper">
         {projects.length === 0 ? (
           <div className="empty-projects-canvas">
             <span className="material-symbols-outlined icon-giant">folder_off</span>
             <div className="empty-text-group">
               <h4>No Projects Found</h4>
-              <p>Items you add will appear here in a manageable table format.</p>
+              <p>There are currently no projects in your Project Library.</p>
             </div>
-            <button className="btn-primary-action" onClick={openAddModal}>+ Add Project</button>
+            <button className="btn-primary-action" onClick={openAddModal}>
+              + New Project
+            </button>
           </div>
-        ) : filteredProjects.length === 0 ? (
+        ) : filteredAndSortedProjects.length === 0 ? (
           <div className="empty-projects-canvas">
             <span className="material-symbols-outlined icon-giant">search_off</span>
             <div className="empty-text-group">
-              <h4>No projects match your search.</h4>
-              <p>Try adjusting your search terms or filter selection.</p>
+              <h4>No Matching Projects</h4>
+              <p>Try changing your search terms or category filter.</p>
             </div>
-            <button className="btn-primary-action" onClick={() => { setSearchTerm(''); setSelectedCategory('All Types'); }}>
+            <button
+              className="btn-primary-action"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory('All Types');
+                setSortBy('priority_asc');
+              }}
+            >
               Clear Filters
             </button>
           </div>
         ) : (
-          <div className="projects-table-container">
-            <table className="projects-table">
-              <thead>
-                <tr>
-                  <th className="th-project">Project</th>
-                  <th className="th-featured">Featured</th>
-                  <th className="th-resources">Resources</th>
-                  <th className="th-manage">Manage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map(project => {
-                  const featuredIdx = featuredProjects.findIndex(p => p._id === project._id);
-                  return (
-                    <tr key={project._id}>
-                      <td className="td-project">
-                        <div className="table-project-cell">
-                          <div 
-                            className="table-project-thumb clickable" 
-                            style={{ backgroundImage: project.imageUrl ? `url(${project.imageUrl})` : 'none' }}
-                            onClick={() => setSelectedProject(project)}
-                            title="Click to view details"
-                          >
-                            {!project.imageUrl && <span className="material-symbols-outlined">image</span>}
-                          </div>
-                          <div className="table-project-info">
-                            <button 
-                              className="table-title-btn" 
-                              onClick={() => setSelectedProject(project)}
-                              title="Click to view project details"
-                            >
-                              {project.title}
-                            </button>
-                            {project.category && (
-                              <span className="table-chip-tag project-type-badge">{project.category}</span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="td-featured">
-                        {project.isFeatured ? (
-                          <div className="featured-badge-group">
-                            <span className="featured-badge active" title="Currently shown on User Portfolio">
-                              ✓ Featured #{project.featuredOrder}
-                            </span>
-                            <div className="order-btns-group">
-                              <button 
-                                className="btn-order-arrow" 
-                                disabled={featuredIdx <= 0}
-                                onClick={() => moveFeatured(featuredIdx, -1)}
-                                title="Move Up in Featured Order"
-                              >
-                                ▲
-                              </button>
-                              <button 
-                                className="btn-order-arrow" 
-                                disabled={featuredIdx < 0 || featuredIdx >= featuredProjects.length - 1}
-                                onClick={() => moveFeatured(featuredIdx, 1)}
-                                title="Move Down in Featured Order"
-                              >
-                                ▼
-                              </button>
-                            </div>
-                            <button 
-                              className="btn-unfeature"
-                              onClick={() => toggleFeature(project)}
-                              title="Remove from Featured"
-                            >
-                              Unfeature
-                            </button>
-                          </div>
-                        ) : (
-                          <button 
-                            className="btn-feature-action"
-                            onClick={() => toggleFeature(project)}
-                            title={featuredCount >= 3 ? "Maximum 3 projects already featured" : "Feature on Portfolio"}
-                          >
-                            + Feature
-                          </button>
+          <div className="projects-card-grid">
+            {filteredAndSortedProjects.map((project) => {
+              const priority = project.displayPriority || 99;
+              const isFeatured = priority >= 1 && priority <= 3;
+              const isPublic = project.isVisible !== false;
+
+              const techStack = Array.isArray(project.techStack)
+                ? project.techStack
+                : typeof project.techStack === 'string'
+                ? project.techStack.split(',').map((t) => t.trim()).filter(Boolean)
+                : [];
+
+              const visibleTech = techStack.slice(0, 3);
+              const overflowCount = techStack.length - 3;
+
+              const codeUrlClean = project.codeUrl?.trim();
+              const demoUrlClean = project.demoUrl?.trim();
+              const isUpdatingThis = updatingPriorityId === project._id;
+
+              return (
+                <div key={project._id} className={`admin-project-card ${isUpdatingThis ? 'updating' : ''}`}>
+                  {/* Card Header & Visual Preview */}
+                  <div className="admin-card-visual">
+                    {project.imageUrl ? (
+                      <img
+                        src={project.imageUrl}
+                        alt={project.title}
+                        className="admin-card-img"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="admin-card-placeholder">
+                        <span className="material-symbols-outlined">laptop</span>
+                      </div>
+                    )}
+                    <div className="admin-badge-row">
+                      <span className="admin-category-badge">
+                        {(project.category || 'Full Stack').toUpperCase()}
+                      </span>
+                      {isFeatured && (
+                        <span className="admin-featured-star-pill">
+                          ★ Featured
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="admin-card-body">
+                    <h4 className="admin-project-title">{project.title}</h4>
+                    <p className="admin-project-desc">{project.description}</p>
+
+                    {/* Tech Stack Chips */}
+                    {techStack.length > 0 && (
+                      <div className="admin-tech-row">
+                        {visibleTech.map((tech, i) => (
+                          <span key={i} className="admin-tech-chip">
+                            {tech}
+                          </span>
+                        ))}
+                        {overflowCount > 0 && (
+                          <span className="admin-tech-chip overflow">
+                            +{overflowCount}
+                          </span>
                         )}
-                      </td>
-                      <td className="td-resources">
-                        <div className="mobile-cell-label">Resources</div>
-                        <div className="table-resource-links">
-                          {project.codeUrl && (
-                            <a 
-                              href={project.codeUrl.startsWith('http') ? project.codeUrl : `https://${project.codeUrl}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="resource-btn" 
-                              title="View GitHub Repository"
-                            >
-                              GitHub <span className="material-symbols-outlined icon-ext">open_in_new</span>
-                            </a>
-                          )}
-                          {project.demoUrl && (
-                            <a 
-                              href={project.demoUrl.startsWith('http') ? project.demoUrl : `https://${project.demoUrl}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="resource-btn demo-btn" 
-                              title="View Live Demo"
-                            >
-                              Live Demo <span className="material-symbols-outlined icon-ext">open_in_new</span>
-                            </a>
-                          )}
-                          {!project.codeUrl && !project.demoUrl && (
-                            <span className="no-resources-text">None</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="td-manage">
-                        <div className="table-action-btns">
-                          <button onClick={() => setSelectedProject(project)} className="action-btn view-btn" title="View Project" aria-label="View Project">
-                            <span className="material-symbols-outlined">visibility</span>
-                          </button>
-                          <button onClick={() => openEditModal(project)} className="action-btn edit-btn" title="Edit Project" aria-label="Edit Project">
-                            <span className="material-symbols-outlined">edit</span>
-                          </button>
-                          <button onClick={() => deleteProject(project._id)} className="action-btn delete-btn" title="Delete Project" aria-label="Delete Project">
-                            <span className="material-symbols-outlined">delete_forever</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Priority & Status Meta Bar */}
+                  <div className="admin-card-meta-bar">
+                    <div className="meta-left">
+                      <label className="priority-control-label">
+                        Display Priority
+                        <select
+                          className="priority-dropdown-select"
+                          value={priority}
+                          disabled={isUpdatingThis}
+                          onChange={(e) => handlePriorityQuickChange(project, e.target.value)}
+                          title="Change Display Priority"
+                        >
+                          {Array.from({ length: totalCount }, (_, i) => i + 1).map((num) => (
+                            <option key={num} value={num}>
+                              #{num}
+                            </option>
+                          ))}
+                        </select>
+                        {isUpdatingThis && <span className="updating-spinner" />}
+                      </label>
+                    </div>
+
+                    <div className="meta-right">
+                      <span className={`status-pill ${isPublic ? 'public' : 'hidden'}`}>
+                        {isPublic ? '● Public' : '● Hidden'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* External Resource Links */}
+                  {(codeUrlClean || demoUrlClean) && (
+                    <div className="admin-card-links-row">
+                      {codeUrlClean && (
+                        <a
+                          href={codeUrlClean.startsWith('http') ? codeUrlClean : `https://${codeUrlClean}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="admin-link-btn github"
+                        >
+                          GitHub ↗
+                        </a>
+                      )}
+                      {demoUrlClean && (
+                        <a
+                          href={demoUrlClean.startsWith('http') ? demoUrlClean : `https://${demoUrlClean}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="admin-link-btn demo"
+                        >
+                          Live Demo ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Management Action Bar */}
+                  <div className="admin-card-actions">
+                    <button
+                      className={`btn-card-action visibility ${isPublic ? 'active' : ''}`}
+                      onClick={() => handleToggleVisibility(project)}
+                      title={isPublic ? 'Hide from Portfolio' : 'Show on Portfolio'}
+                      disabled={isSubmitting || isUpdatingThis}
+                    >
+                      <span className="material-symbols-outlined">
+                        {isPublic ? 'visibility' : 'visibility_off'}
+                      </span>
+                      {isPublic ? 'Public' : 'Hidden'}
+                    </button>
+
+                    <button
+                      className="btn-card-action edit"
+                      onClick={() => openEditModal(project)}
+                      title="Edit Project"
+                      disabled={isSubmitting}
+                    >
+                      <span className="material-symbols-outlined">edit</span>
+                      Edit
+                    </button>
+
+                    <button
+                      className="btn-card-action delete"
+                      onClick={() => deleteProject(project._id)}
+                      title="Delete Project"
+                      disabled={isSubmitting}
+                    >
+                      <span className="material-symbols-outlined">delete</span>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* In-App Native Project Details Modal */}
-      {selectedProject && (
-        <div className="pdf-modal-overlay" onClick={() => setSelectedProject(null)}>
-          <div className="pdf-modal-container project-details-container" onClick={(e) => e.stopPropagation()}>
-            <div className="pdf-modal-header">
-              <div className="pdf-modal-title">
-                <span className="material-symbols-outlined">work</span>
-                <h3>{selectedProject.title}</h3>
+      {/* Modal Dialog for Project Form (Create / Edit) */}
+      {isAnyModalOpen && (
+        <Modal
+          title={isEditProjectOpen ? 'Edit Project' : 'New Project'}
+          isOpen={isAnyModalOpen}
+          onClose={closeModal}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+            className="project-form"
+          >
+            {errors.general && (
+              <div className="form-error-banner" role="alert">
+                <span className="material-symbols-outlined">error</span>
+                {errors.general}
               </div>
-              <div className="pdf-modal-actions">
-                <button 
-                  className="btn-banner-action" 
-                  onClick={() => { 
-                    const p = selectedProject; 
-                    setSelectedProject(null); 
-                    openEditModal(p); 
-                  }}
-                >
-                  <span className="material-symbols-outlined">edit</span> Edit
-                </button>
-                <button className="pdf-close-btn" onClick={() => setSelectedProject(null)} title="Close Details">
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-            </div>
-            <div className="project-details-body">
-              {selectedProject.imageUrl && (
-                <div className="project-details-banner" style={{ backgroundImage: `url(${selectedProject.imageUrl})` }}>
-                  <div className="project-banner-overlay">
-                    <span className="project-category-badge">{selectedProject.category}</span>
-                    <h2 className="project-banner-title">{selectedProject.title}</h2>
-                  </div>
-                </div>
-              )}
-              
-              <div className="project-details-content">
-                <div className="details-block">
-                  <h6 className="details-section-label">Overview & Summary</h6>
-                  <p className="project-description-full">{selectedProject.description}</p>
-                </div>
+            )}
 
-                {selectedProject.tags && selectedProject.tags.length > 0 && (
-                  <div className="details-block">
-                    <h6 className="details-section-label">Classifications / Tags</h6>
-                    <div className="details-chip-list">
-                      {selectedProject.tags.map(t => (
-                        <span key={t} className="table-chip-tag detail-chip">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedProject.techStack && selectedProject.techStack.length > 0 && (
-                  <div className="details-block">
-                    <h6 className="details-section-label">Technology Stack</h6>
-                    <div className="details-chip-list">
-                      {selectedProject.techStack.map(s => (
-                        <span key={s} className="table-chip-stack detail-chip">{s}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(selectedProject.codeUrl || selectedProject.demoUrl) && (
-                  <div className="details-block">
-                    <h6 className="details-section-label">External Resources</h6>
-                    <div className="details-resource-links">
-                      {selectedProject.codeUrl && (
-                        <a href={selectedProject.codeUrl.startsWith('http') ? selectedProject.codeUrl : `https://${selectedProject.codeUrl}`} target="_blank" rel="noopener noreferrer" className="btn-resource-link">
-                          <span className="material-symbols-outlined">code</span> View Code Repository
-                        </a>
-                      )}
-                      {selectedProject.demoUrl && (
-                        <a href={selectedProject.demoUrl.startsWith('http') ? selectedProject.demoUrl : `https://${selectedProject.demoUrl}`} target="_blank" rel="noopener noreferrer" className="btn-resource-link demo-accent">
-                          <span className="material-symbols-outlined">public</span> Live Demo / Deployment
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Modal 
-        title={editingProject ? "Refine Project Details" : "Construct New Project"} 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setErrors({}); }} 
-        onSave={handleSave}
-      >
-        <div className="project-form-container">
-          <div className="form-group-box">
-            <h6 className="group-label">Core Identity</h6>
-            <div className="form-grid-2">
-                <div className="form-field">
-                    <label>Project Title</label>
-                    <input 
-                        type="text" 
-                        className={`form-input ${errors.title ? 'error' : ''}`} 
-                        value={projectForm.title} 
-                        onChange={(e) => setProjectForm({...projectForm, title: e.target.value})} 
-                    />
-                    {errors.title && <span className="form-error-msg">{errors.title}</span>}
-                </div>
-                <div className="form-field">
-                    <label>Project Type</label>
-                    <select 
-                        className="form-input"
-                        value={projectForm.category}
-                        onChange={(e) => setProjectForm({...projectForm, category: e.target.value})}
-                    >
-                        <option value="Full Stack">Full Stack</option>
-                        <option value="Front End">Front End</option>
-                        <option value="Back End">Back End</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div className="form-field">
-              <label>Summary Description</label>
-              <textarea 
-                rows={4} 
-                className={`form-textarea ${errors.description ? 'error' : ''}`} 
-                value={projectForm.description} 
-                onChange={(e) => setProjectForm({...projectForm, description: e.target.value})} 
-              />
-              {errors.description && <span className="form-error-msg">{errors.description}</span>}
-            </div>
-          </div>
-
-          <div className="form-group-box">
-            <h6 className="group-label">Portfolio User Visibility</h6>
-            <div className="form-field">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontWeight: 600 }}>
-                <input 
-                  type="checkbox" 
-                  checked={projectForm.isFeatured} 
-                  onChange={(e) => {
-                    if (e.target.checked && (!editingProject || !editingProject.isFeatured) && featuredCount >= 3) {
-                      alert("Only 3 featured projects are allowed. Please remove one featured project before selecting another.");
-                      return;
-                    }
-                    setProjectForm({ ...projectForm, isFeatured: e.target.checked });
-                  }}
-                  style={{ width: '1.1rem', height: '1.1rem', accentColor: 'var(--primary)' }}
+            <div className="form-grid">
+              <div className="form-group span-2">
+                <label className="form-label">Project Title *</label>
+                <input
+                  type="text"
+                  className={`form-input ${errors.title ? 'error' : ''}`}
+                  placeholder="e.g. Placement Portal System"
+                  value={projectForm.title}
+                  onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
+                  disabled={isSubmitting}
                 />
-                Show on User Portfolio as Featured Project
-              </label>
-              <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.35rem' }}>
-                Featured Projects Counter: {featuredCount} / 3 selected.
-              </p>
-            </div>
-          </div>
+                {errors.title && <span className="error-text">{errors.title}</span>}
+              </div>
 
-          <div className="form-group-box">
-            <h6 className="group-label">Branding & Assets</h6>
-            <div className={`project-upload-area ${errors.imageUrl ? 'error' : ''}`}>
-              {projectForm.imageUrl ? (
-                <div className="upload-preview-active">
-                  <img src={projectForm.imageUrl || null} alt="Thumbnail" />
-                  <div className="upload-actions-overlay">
-                    <label className="btn-overlay-change">
-                      <span className="material-symbols-outlined">sync</span> Replace
-                      <input type="file" accept="image/*" className="hidden-input" onChange={handleFileChange} />
-                    </label>
-                    <button className="btn-overlay-remove" onClick={() => setProjectForm({...projectForm, imageUrl: ""})}>
-                      <span className="material-symbols-outlined">delete</span>
+              <div className="form-group">
+                <label className="form-label">Category *</label>
+                <select
+                  className={`form-input ${errors.category ? 'error' : ''}`}
+                  value={projectForm.category}
+                  onChange={(e) => setProjectForm({ ...projectForm, category: e.target.value })}
+                  disabled={isSubmitting}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+                {errors.category && <span className="error-text">{errors.category}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Display Priority *</label>
+                <select
+                  className={`form-input ${errors.displayPriority ? 'error' : ''}`}
+                  value={projectForm.displayPriority}
+                  onChange={(e) => setProjectForm({ ...projectForm, displayPriority: parseInt(e.target.value, 10) })}
+                  disabled={isSubmitting}
+                >
+                  {Array.from(
+                    { length: isEditProjectOpen ? totalCount : totalCount + 1 },
+                    (_, i) => i + 1
+                  ).map((num) => (
+                    <option key={num} value={num}>
+                      #{num} {num <= 3 ? '(Featured Showcase)' : '(More Carousel)'}
+                    </option>
+                  ))}
+                </select>
+                {errors.displayPriority && <span className="error-text">{errors.displayPriority}</span>}
+              </div>
+
+              <div className="form-group span-2">
+                <label className="form-label">Summary Description *</label>
+                <textarea
+                  rows="3"
+                  className={`form-input ${errors.description ? 'error' : ''}`}
+                  placeholder="Provide a concise description of what the project does..."
+                  value={projectForm.description}
+                  onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
+                  disabled={isSubmitting}
+                />
+                {errors.description && <span className="error-text">{errors.description}</span>}
+              </div>
+
+              <div className="form-group span-2">
+                <label className="form-label">Tech Stack (comma separated)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. React, Node.js, Express, PostgreSQL"
+                  value={projectForm.techStackInput}
+                  onChange={(e) => setProjectForm({ ...projectForm, techStackInput: e.target.value })}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">GitHub Repository URL</label>
+                <input
+                  type="url"
+                  className={`form-input ${errors.codeUrl ? 'error' : ''}`}
+                  placeholder="https://github.com/username/repository"
+                  value={projectForm.codeUrl}
+                  onChange={(e) => setProjectForm({ ...projectForm, codeUrl: e.target.value })}
+                  disabled={isSubmitting}
+                />
+                {errors.codeUrl && <span className="error-text">{errors.codeUrl}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Live Demo URL</label>
+                <input
+                  type="url"
+                  className={`form-input ${errors.demoUrl ? 'error' : ''}`}
+                  placeholder="https://yourprojectdemo.com"
+                  value={projectForm.demoUrl}
+                  onChange={(e) => setProjectForm({ ...projectForm, demoUrl: e.target.value })}
+                  disabled={isSubmitting}
+                />
+                {errors.demoUrl && <span className="error-text">{errors.demoUrl}</span>}
+              </div>
+
+              <div className="form-group span-2">
+                <label className="checkbox-label flex-row">
+                  <input
+                    type="checkbox"
+                    checked={projectForm.isVisible}
+                    onChange={(e) => setProjectForm({ ...projectForm, isVisible: e.target.checked })}
+                    disabled={isSubmitting}
+                  />
+                  <span>Public Visibility (Display on Portfolio)</span>
+                </label>
+              </div>
+
+              <div className="form-group span-2">
+                <label className="form-label">Project Image / Screenshot</label>
+                <div className="project-upload-area">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    id="project-image-file"
+                    style={{ display: 'none' }}
+                    disabled={isSubmitting}
+                  />
+                  <label htmlFor="project-image-file" className="upload-placeholder-zone">
+                    <span className="material-symbols-outlined">add_photo_alternate</span>
+                    <div className="placeholder-text">
+                      <p className="main-p">Click to Upload Project Cover Image</p>
+                      <p className="sub-p">PNG, JPG, WebP up to 5MB</p>
+                    </div>
+                  </label>
+                </div>
+                {projectForm.imageUrl && (
+                  <div className="image-preview-container">
+                    <img src={projectForm.imageUrl} alt="Project Preview" className="image-preview" />
+                    <button
+                      type="button"
+                      className="btn-remove-image"
+                      onClick={() => setProjectForm({ ...projectForm, imageUrl: '' })}
+                      disabled={isSubmitting}
+                    >
+                      Remove Cover
                     </button>
                   </div>
-                </div>
-              ) : (
-                <label className="upload-placeholder-zone">
-                  <span className="material-symbols-outlined">add_photo_alternate</span>
-                  <div className="placeholder-text"><p>Click to upload image</p></div>
-                  <input type="file" accept="image/*" className="hidden-input" onChange={handleFileChange} />
-                </label>
-              )}
-            </div>
-          </div>
-
-          <div className="form-group-box">
-            <h6 className="group-label">Technical Footprint</h6>
-            <div className="form-grid-2">
-              <div className="form-field">
-                <label>Tags (Comma separated)</label>
-                <input type="text" className="form-input" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="React, Node, etc." />
-              </div>
-              <div className="form-field">
-                <label>Tech Stack (Comma separated)</label>
-                <input type="text" className="form-input" value={techStackInput} onChange={(e) => setTechStackInput(e.target.value)} placeholder="MERN, AWS, etc." />
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="form-group-box">
-            <h6 className="group-label">Links</h6>
-            <div className="form-grid-2">
-              <input type="text" className="form-input" placeholder="Code URL" value={projectForm.codeUrl} onChange={(e) => setProjectForm({...projectForm, codeUrl: e.target.value})} />
-              <input type="text" className="form-input" placeholder="Demo URL" value={projectForm.demoUrl} onChange={(e) => setProjectForm({...projectForm, demoUrl: e.target.value})} />
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeModal}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary" disabled={isSubmitting}>
+                {isSubmitting
+                  ? isEditProjectOpen
+                    ? 'Saving...'
+                    : 'Creating...'
+                  : isEditProjectOpen
+                  ? 'Save Changes'
+                  : 'Create Project'}
+              </button>
             </div>
-          </div>
-        </div>
-      </Modal>
+          </form>
+        </Modal>
+      )}
     </section>
   );
 };

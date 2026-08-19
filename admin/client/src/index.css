@@ -22,12 +22,16 @@
   --radius-xl: 0.75rem;
   --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* Admin Fluid Typography Tokens (clamp) */
-  --font-admin-h1: clamp(1.4rem, 2.8vw, 2.15rem);
-  --font-admin-h2: clamp(1.15rem, 2.2vw, 1.6rem);
-  --font-admin-h3: clamp(0.975rem, 1.6vw, 1.25rem);
-  --font-admin-body: clamp(0.85rem, 1vw + 0.35rem, 0.95rem);
-  --font-admin-small: clamp(0.75rem, 0.8vw + 0.3rem, 0.825rem);
+  /* Admin Compact Professional Typography Scale */
+  --font-admin-h1: clamp(1.4rem, 2.5vw, 1.65rem);
+  --font-admin-h2: clamp(1.1rem, 1.8vw, 1.25rem);
+  --font-admin-h3: clamp(0.95rem, 1.3vw, 1.05rem);
+  --font-admin-h4: 0.875rem;
+  --font-admin-body: 0.875rem;
+  --font-admin-sub: 0.8125rem;
+  --font-admin-small: 0.75rem;
+  --font-admin-xs: 0.6875rem;
+  --font-admin-stat: clamp(1.375rem, 2vw, 1.625rem);
 }
 
 * {

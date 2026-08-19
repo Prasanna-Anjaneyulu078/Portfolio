@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { scrollToSection } from '../../utils/scrollUtils';
 import './Header.css';
 
 // Full ordered master navigation items list
@@ -53,22 +54,11 @@ const Header = ({ visibleSections = [], userData = {} }) => {
   }, [visibleSections]);
 
   const handleLinkClick = (e, href) => {
+    e.preventDefault();
     setIsMenuOpen(false);
     const targetId = href.replace('#', '');
-    const element = document.getElementById(targetId);
-    if (element) {
-      e.preventDefault();
-      const headerOffset = 72;
-      const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth',
-      });
-
-      setActiveSection(targetId);
-    }
+    scrollToSection(targetId);
+    setActiveSection(targetId);
   };
 
   return (
