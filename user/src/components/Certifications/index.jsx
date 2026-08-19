@@ -2,16 +2,14 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import SectionHeader from '../SectionHeader';
 import './Certifications.css';
 
+import { resolveAssetUrl } from '../../config/api';
+
 const formatUrl = (url) => {
   if (!url || url === '#' || url.trim() === '') return '';
   return url.startsWith('http') ? url : `https://${url}`;
 };
 
-import { resolveAssetUrl } from '../../config/api';
-
-const resolveFileUrl = (urlStr) => {
-  return resolveAssetUrl(urlStr);
-};
+const resolveFileUrl = (urlStr) => resolveAssetUrl(urlStr);
 
 const detectFileType = (urlStr) => {
   if (!urlStr) return { isPdf: false, isImage: false };
@@ -22,24 +20,73 @@ const detectFileType = (urlStr) => {
   return { isPdf: false, isImage: true };
 };
 
+/* ─── Clean fallback UI for when preview is unavailable ─────────────────── */
+const CertPreviewFallback = ({ fileUrl, label = 'Open Certificate' }) => (
+  <div className="cert-preview-fallback">
+    <span className="material-symbols-outlined cert-fallback-icon">workspace_premium</span>
+    <p className="cert-fallback-label">Certificate Preview</p>
+    <p className="cert-fallback-sub">Unable to preview this file</p>
+    {fileUrl && (
+      <a
+        href={fileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn-cert-open"
+      >
+        {label} ↗
+      </a>
+    )}
+  </div>
+);
+
+/* ─── Image certificate with React-state error handling ─────────────────── */
+const CertImagePreview = ({ fileUrl, title }) => {
+  const [imgError, setImgError] = useState(false);
+
+  // Reset error state when fileUrl changes (carousel navigation)
+  useEffect(() => {
+    setImgError(false);
+  }, [fileUrl]);
+
+  if (imgError) {
+    return (
+      <CertPreviewFallback
+        fileUrl={fileUrl}
+        label="Open Certificate"
+      />
+    );
+  }
+
+  return (
+    <a
+      href={fileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="cert-img-wrapper-link"
+      title="Click to view full certificate"
+    >
+      <img
+        src={fileUrl}
+        alt={title ? `${title} certificate` : 'Certificate preview'}
+        className="cert-full-img"
+        loading="eager"
+        onError={() => setImgError(true)}
+      />
+    </a>
+  );
+};
+
+/* ─── PDF certificate component with reliable state-based fallback ───────── */
 const PdfPreview = ({ fileUrl, title }) => {
   const [hasError, setHasError] = useState(false);
 
+  // Reset when fileUrl changes
+  useEffect(() => {
+    setHasError(false);
+  }, [fileUrl]);
+
   if (hasError) {
-    return (
-      <div className="pdf-fallback-box">
-        <span className="material-symbols-outlined icon-pdf-large">picture_as_pdf</span>
-        <p className="pdf-fallback-title">PDF Certificate Document</p>
-        <a
-          href={fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-view-pdf-large"
-        >
-          View Certificate ↗
-        </a>
-      </div>
-    );
+    return <CertPreviewFallback fileUrl={fileUrl} label="Open PDF" />;
   }
 
   return (
@@ -50,25 +97,8 @@ const PdfPreview = ({ fileUrl, title }) => {
         className="pdf-embed-object"
         onError={() => setHasError(true)}
       >
-        <iframe
-          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-          title={title || 'PDF Certificate'}
-          className="pdf-embed-iframe"
-          onError={() => setHasError(true)}
-        >
-          <div className="pdf-fallback-box">
-            <span className="material-symbols-outlined icon-pdf-large">picture_as_pdf</span>
-            <p className="pdf-fallback-title">PDF Certificate Document</p>
-            <a
-              href={fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-view-pdf-large"
-            >
-              View Certificate ↗
-            </a>
-          </div>
-        </iframe>
+        {/* Fallback for browsers that cannot render PDF inside <object> */}
+        <CertPreviewFallback fileUrl={fileUrl} label="Open PDF" />
       </object>
       <div className="pdf-open-overlay">
         <a
@@ -85,6 +115,7 @@ const PdfPreview = ({ fileUrl, title }) => {
   );
 };
 
+/* ─── Main Certifications component ─────────────────────────────────────── */
 const Certifications = ({ certifications = [] }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -95,20 +126,30 @@ const Certifications = ({ certifications = [] }) => {
   // Filter active/visible certs & sort strictly by displayOrder ascending
   const validCerts = React.useMemo(() => {
     if (!Array.isArray(certifications)) return [];
-    const filtered = certifications.filter((c) => c.isVisible !== false && c.isActive !== false);
+    const filtered = certifications.filter(
+      (c) => c.isVisible !== false && c.isActive !== false
+    );
 
     return [...filtered].sort((a, b) => {
-      const orderA = typeof a.displayOrder === 'number' ? a.displayOrder : typeof a.order === 'number' ? a.order : 0;
-      const orderB = typeof b.displayOrder === 'number' ? b.displayOrder : typeof b.order === 'number' ? b.order : 0;
+      const orderA =
+        typeof a.displayOrder === 'number'
+          ? a.displayOrder
+          : typeof a.order === 'number'
+          ? a.order
+          : 0;
+      const orderB =
+        typeof b.displayOrder === 'number'
+          ? b.displayOrder
+          : typeof b.order === 'number'
+          ? b.order
+          : 0;
 
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
+      if (orderA !== orderB) return orderA - orderB;
+
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      if (timeA !== timeB) {
-        return timeA - timeB;
-      }
+      if (timeA !== timeB) return timeA - timeB;
+
       return String(a._id || '').localeCompare(String(b._id || ''));
     });
   }, [certifications]);
@@ -122,32 +163,22 @@ const Certifications = ({ certifications = [] }) => {
     }
   }, [validCerts.length, maxIndex, currentIndex]);
 
-  // If no database certification records exist, return null to completely hide section
-  if (validCerts.length === 0) {
-    return null;
-  }
+  // If no certification records exist, hide section entirely
+  if (validCerts.length === 0) return null;
 
-  const handlePrev = () => {
-    setCurrentIndex((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => Math.min(maxIndex, prev + 1));
-  };
+  const handlePrev = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
+  const handleNext = () => setCurrentIndex((prev) => Math.min(maxIndex, prev + 1));
 
   const handleTouchEnd = useCallback(() => {
     if (!touchStartX.current || !touchEndX.current) return;
     const distance = touchStartX.current - touchEndX.current;
-    if (distance > 50 && currentIndex < maxIndex) {
-      handleNext();
-    } else if (distance < -50 && currentIndex > 0) {
-      handlePrev();
-    }
+    if (distance > 50 && currentIndex < maxIndex) handleNext();
+    else if (distance < -50 && currentIndex > 0) handlePrev();
     touchStartX.current = null;
     touchEndX.current = null;
   }, [currentIndex, maxIndex]);
 
-  // Attach touch listeners with { passive: true } to prevent scroll-blocking violation
+  // Attach touch listeners passively to avoid scroll-blocking violation
   useEffect(() => {
     const card = certCardRef.current;
     if (!card) return;
@@ -168,16 +199,19 @@ const Certifications = ({ certifications = [] }) => {
   }, [handleTouchEnd]);
 
   const handleKeyDown = (e) => {
-    if (e.key === 'ArrowLeft' && currentIndex > 0) {
-      handlePrev();
-    } else if (e.key === 'ArrowRight' && currentIndex < maxIndex) {
-      handleNext();
-    }
+    if (e.key === 'ArrowLeft' && currentIndex > 0) handlePrev();
+    else if (e.key === 'ArrowRight' && currentIndex < maxIndex) handleNext();
   };
 
   const activeCert = validCerts[currentIndex] || validCerts[0];
-  const formattedUrl = formatUrl(activeCert.verificationUrl);
-  const rawFileUrl = activeCert.certificateFileUrl || activeCert.imageUrl || activeCert.fileUrl || activeCert.certificate || activeCert.url || '';
+  const formattedVerifyUrl = formatUrl(activeCert.verificationUrl);
+  const rawFileUrl =
+    activeCert.certificateFileUrl ||
+    activeCert.imageUrl ||
+    activeCert.fileUrl ||
+    activeCert.certificate ||
+    activeCert.url ||
+    '';
   const resolvedFileUrl = resolveFileUrl(rawFileUrl);
   const { isPdf } = detectFileType(resolvedFileUrl);
   const issuerName = activeCert.issuingOrganization || activeCert.issuer;
@@ -206,57 +240,43 @@ const Certifications = ({ certifications = [] }) => {
               </button>
             )}
 
-            {/* Active Certificate Card — touch listeners attached passively via useEffect */}
+            {/* Active Certificate Card — touch listeners attached passively */}
             <div
               ref={certCardRef}
               className="cert-active-card"
               onKeyDown={handleKeyDown}
               tabIndex={0}
             >
-              {/* Full Certificate Preview Area */}
+              {/* Certificate Preview Area */}
               <div className="cert-full-preview-box">
                 {resolvedFileUrl ? (
                   isPdf ? (
-                    <PdfPreview fileUrl={resolvedFileUrl} title={activeCert.title} />
+                    <PdfPreview
+                      key={resolvedFileUrl}
+                      fileUrl={resolvedFileUrl}
+                      title={activeCert.title}
+                    />
                   ) : (
-                    <a
-                      href={resolvedFileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="cert-img-wrapper-link"
-                      title="Click to view full certificate"
-                    >
-                      <img
-                        src={resolvedFileUrl}
-                        alt={`${activeCert.title || 'Certificate'} preview`}
-                        className="cert-full-img"
-                        loading="eager"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          if (e.currentTarget.nextSibling) {
-                            e.currentTarget.nextSibling.style.display = 'flex';
-                          }
-                        }}
-                      />
-                      <div className="cert-fallback-box" style={{ display: 'none' }}>
-                        <span className="material-symbols-outlined icon-large">description</span>
-                        <p className="fallback-text">Certificate Preview Unavailable</p>
-                        <span className="btn-view-pdf">Open Document ↗</span>
-                      </div>
-                    </a>
+                    <CertImagePreview
+                      key={resolvedFileUrl}
+                      fileUrl={resolvedFileUrl}
+                      title={activeCert.title}
+                    />
                   )
                 ) : (
-                  <div className="cert-fallback-box">
-                    <span className="material-symbols-outlined icon-large">workspace_premium</span>
-                    <p className="fallback-text">Certificate File Not Uploaded</p>
-                  </div>
+                  /* No file URL at all */
+                  <CertPreviewFallback label="Certificate Not Available" />
                 )}
               </div>
 
               {/* Compact Metadata Info Below Certificate */}
               <div className="cert-metadata-info">
-                {activeCert.title && <h3 className="cert-title-primary">{activeCert.title}</h3>}
-                {issuerName && <h4 className="cert-issuer-name">{issuerName}</h4>}
+                {activeCert.title && (
+                  <h3 className="cert-title-primary">{activeCert.title}</h3>
+                )}
+                {issuerName && (
+                  <h4 className="cert-issuer-name">{issuerName}</h4>
+                )}
 
                 <div className="cert-details-meta">
                   {(activeCert.issueDate || activeCert.date) && (
@@ -271,9 +291,9 @@ const Certifications = ({ certifications = [] }) => {
                       ID: {activeCert.credentialId}
                     </span>
                   )}
-                  {formattedUrl && (
+                  {formattedVerifyUrl && (
                     <a
-                      href={formattedUrl}
+                      href={formattedVerifyUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="cert-verify-link"
