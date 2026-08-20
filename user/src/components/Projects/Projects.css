@@ -351,27 +351,43 @@
 
 /* Carousel Viewport Track & Slides */
 .carousel-viewport-track {
-  overflow: hidden;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  gap: 1.25rem;
+  padding: 0.5rem 0;
+  scrollbar-width: none; /* Firefox */
   width: 100%;
   border-radius: 14px;
 }
 
-.carousel-slides-wrapper {
-  display: flex;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 100%;
+.carousel-viewport-track::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .carousel-slide-item {
-  min-width: 100%;
-  flex-shrink: 0;
+  flex: 0 0 calc(33.333% - 0.833rem); /* 3 per view on desktop */
+  scroll-snap-align: start;
   box-sizing: border-box;
-  padding: 0 0.25rem;
+  display: flex;
+}
+
+@media (max-width: 1024px) {
+  .carousel-slide-item {
+    flex: 0 0 calc(50% - 0.625rem); /* 2 per view on tablet */
+  }
+}
+
+@media (max-width: 768px) {
+  .carousel-slide-item {
+    flex: 0 0 100%; /* 1 per view on mobile */
+  }
 }
 
 .carousel-card {
-  margin: 0 auto;
-  max-width: 760px;
+  margin: 0;
+  width: 100%;
 }
 
 /* Pagination Dots */

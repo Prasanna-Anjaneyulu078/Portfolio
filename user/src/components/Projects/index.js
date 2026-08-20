@@ -56,70 +56,21 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
     return allProjects;
   }, [allProjects]);
 
-  // Max carousel index calculation
-  const maxCarouselIndex = Math.max(0, carouselProjects.length - 1);
+  const carouselViewportRef = useRef(null);
 
-  const handlePrevSlide = () => {
-    setCarouselIndex((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleNextSlide = () => {
-    setCarouselIndex((prev) => Math.min(maxCarouselIndex, prev + 1));
-  };
-
-  // Touch Swipe Handlers — attached via useEffect with { passive: true } to avoid
-  // scroll-blocking non-passive event listener violation.
-  const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return;
-    const distance = touchStartX.current - touchEndX.current;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe && carouselIndex < maxCarouselIndex) {
-      handleNextSlide();
-    } else if (isRightSwipe && carouselIndex > 0) {
-      handlePrevSlide();
+  const scrollByAmount = (direction) => {
+    if (carouselViewportRef.current) {
+      const itemWidth = carouselViewportRef.current.querySelector('.carousel-slide-item').offsetWidth;
+      const gap = 20; // 1.25rem gap
+      carouselViewportRef.current.scrollBy({
+        left: direction * (itemWidth + gap),
+        behavior: 'smooth'
+      });
     }
-
-    touchStartX.current = null;
-    touchEndX.current = null;
   };
 
-  const handleTouchEndRef = useRef(handleTouchEnd);
-  useEffect(() => { handleTouchEndRef.current = handleTouchEnd; });
-
-  useEffect(() => {
-    const track = carouselTrackRef.current;
-    if (!track) return;
-
-    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-    const onTouchMove = (e) => { touchEndX.current = e.touches[0].clientX; };
-    const onTouchEnd = () => handleTouchEndRef.current();
-
-    track.addEventListener('touchstart', onTouchStart, { passive: true });
-    track.addEventListener('touchmove', onTouchMove, { passive: true });
-    track.addEventListener('touchend', onTouchEnd, { passive: true });
-
-    return () => {
-      track.removeEventListener('touchstart', onTouchStart);
-      track.removeEventListener('touchmove', onTouchMove);
-      track.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [showMoreProjects]);
-
-  // Keyboard navigation for carousel
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!showMoreProjects) return;
-      if (e.key === 'ArrowLeft') {
-        handlePrevSlide();
-      } else if (e.key === 'ArrowRight') {
-        handleNextSlide();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showMoreProjects, maxCarouselIndex]);
+  const handlePrevSlide = () => scrollByAmount(-1);
+  const handleNextSlide = () => scrollByAmount(1);
 
   // Shared Projects navigation helper — exact same function used by navbar & buttons
   const handleProjectsNavigation = () => {
@@ -384,41 +335,32 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
           >
             <div className="carousel-controls-bar">
               <span id="more-projects-title" className="carousel-counter-text">
-                Project {carouselIndex + 1} of {carouselProjects.length}
+                More Projects
               </span>
               <div className="carousel-nav-buttons">
                 <button
                   type="button"
                   className="carousel-btn"
                   onClick={handlePrevSlide}
-                  disabled={carouselIndex === 0}
-                  aria-label="Previous Project"
+                  aria-label="Previous Projects"
                 >
-                  ‹
+                  &#8592;
                 </button>
                 <button
                   type="button"
                   className="carousel-btn"
                   onClick={handleNextSlide}
-                  disabled={carouselIndex >= maxCarouselIndex}
-                  aria-label="Next Project"
+                  aria-label="Next Projects"
                 >
-                  ›
+                  &#8594;
                 </button>
               </div>
             </div>
 
-            {/* Carousel Viewport Track — touch listeners attached passively via useEffect */}
             <div
-              ref={carouselTrackRef}
+              ref={carouselViewportRef}
               className="carousel-viewport-track"
             >
-              <div
-                className="carousel-slides-wrapper"
-                style={{
-                  transform: `translateX(-${carouselIndex * 100}%)`,
-                }}
-              >
                 {carouselProjects.map((proj) => {
                   const hasCode = Boolean(proj.codeUrl && proj.codeUrl.trim());
                   const hasDemo = Boolean(proj.demoUrl && proj.demoUrl.trim());
@@ -493,20 +435,6 @@ const Projects = ({ projects = [], loading = false, error = false }) => {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Pagination Dots */}
-            <div className="carousel-dots-row">
-              {carouselProjects.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className={`carousel-dot ${idx === carouselIndex ? 'active' : ''}`}
-                  onClick={() => setCarouselIndex(idx)}
-                  aria-label={`Go to slide ${idx + 1}`}
-                />
-              ))}
             </div>
           </div>
         )}

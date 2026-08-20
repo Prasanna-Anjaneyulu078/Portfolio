@@ -117,6 +117,7 @@ const CertificationsSection = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCert, setEditingCert] = useState(null);
   const [errors, setErrors] = useState({});
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const [certForm, setCertForm] = useState({
     title: "",
@@ -204,6 +205,7 @@ const CertificationsSection = () => {
       isVisible: true
     });
     setErrors({});
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
@@ -220,6 +222,7 @@ const CertificationsSection = () => {
       isVisible: cert.isVisible !== false && cert.isActive !== false
     });
     setErrors({});
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
@@ -227,6 +230,7 @@ const CertificationsSection = () => {
     setIsModalOpen(false);
     setEditingCert(null);
     setErrors({});
+    setSelectedFile(null);
   };
 
   const handleSave = async () => {
@@ -234,6 +238,23 @@ const CertificationsSection = () => {
 
     setIsSubmitting(true);
     try {
+      let finalFileUrl = certForm.certificateFileUrl;
+      
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        const uploadRes = await axios.post(`${API_BASE_URL}/upload`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        if (uploadRes.data && uploadRes.data.success) {
+          finalFileUrl = uploadRes.data.fileUrl;
+        }
+      }
+
       const parsedOrder = parseInt(certForm.displayOrder, 10) || 0;
       const payload = {
         _id: editingCert ? editingCert._id : undefined,
@@ -243,8 +264,8 @@ const CertificationsSection = () => {
         issueDate: certForm.issueDate.trim(),
         credentialId: certForm.credentialId.trim(),
         verificationUrl: certForm.verificationUrl.trim(),
-        certificateFileUrl: certForm.certificateFileUrl,
-        imageUrl: certForm.certificateFileUrl,
+        certificateFileUrl: finalFileUrl,
+        imageUrl: finalFileUrl,
         displayOrder: parsedOrder,
         order: parsedOrder,
         isVisible: certForm.isVisible,
@@ -303,8 +324,9 @@ const CertificationsSection = () => {
     }
 
     try {
-      const base64 = await fileToBase64(file);
-      setCertForm(prev => ({ ...prev, certificateFileUrl: base64 }));
+      const previewUrl = URL.createObjectURL(file);
+      setCertForm(prev => ({ ...prev, certificateFileUrl: previewUrl }));
+      setSelectedFile(file);
       setErrors(prev => ({ ...prev, certificateFileUrl: null }));
     } catch (err) {
       console.error("File Conversion Error:", err);
@@ -608,7 +630,10 @@ const CertificationsSection = () => {
                     <button
                       type="button"
                       className="btn-link-action remove"
-                      onClick={() => setCertForm({ ...certForm, certificateFileUrl: '' })}
+                      onClick={() => {
+                        setCertForm({ ...certForm, certificateFileUrl: '' });
+                        setSelectedFile(null);
+                      }}
                       disabled={isSubmitting}
                     >
                       Remove File

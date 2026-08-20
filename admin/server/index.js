@@ -22,6 +22,7 @@ const Resume = require('./Models/resume.js');
 const Certification = require('./Models/certification.js');
 const Experience = require('./Models/experience.js');
 const Admin = require('./Models/admin.js');
+const FileModel = require('./Models/file.js');
 const {
   normalizeText,
   normalizeUrl,
@@ -33,6 +34,14 @@ const {
 
 dotenv.config();
 const app = express();
+
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5 MB limit
+  }
+});
 
 // --- MIDDLEWARE ---
 app.use(express.json({ limit: '50mb' })); 
@@ -145,6 +154,55 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/verify', requireAuth, (req, res) => {
   res.json({ valid: true, email: req.admin.email });
+});
+
+// --- FILE UPLOAD ROUTES ---
+app.post('/api/upload', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file provided' });
+    }
+
+    const newFile = new FileModel({
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+      data: req.file.buffer
+    });
+
+    const savedFile = await newFile.save();
+    
+    // Return a persistent URL path relative to the backend
+    return res.status(201).json({
+      success: true,
+      fileUrl: `/api/files/${savedFile._id}`,
+      filename: savedFile.filename
+    });
+  } catch (err) {
+    console.error("Upload Error:", err);
+    res.status(500).json({ success: false, message: 'File upload failed', error: err.message });
+  }
+});
+
+// Public route to access uploaded files
+app.get('/api/files/:id', async (req, res) => {
+  try {
+    const fileId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(fileId)) {
+      return res.status(400).json({ message: 'Invalid file ID' });
+    }
+
+    const fileDocument = await FileModel.findById(fileId);
+    if (!fileDocument) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    res.set('Content-Type', fileDocument.contentType);
+    res.set('Content-Disposition', `inline; filename="${fileDocument.filename}"`);
+    res.send(fileDocument.data);
+  } catch (err) {
+    console.error("File Fetch Error:", err);
+    res.status(500).json({ message: 'Server error retrieving file' });
+  }
 });
 
 // --- ONE-TIME ADMIN SETUP ENDPOINT ---

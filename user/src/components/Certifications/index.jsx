@@ -115,14 +115,115 @@ const PdfPreview = ({ fileUrl, title }) => {
   );
 };
 
-/* ─── Main Certifications component ─────────────────────────────────────── */
+/* ─── Certification Card Component ────────────────────────────────────────── */
+const CertCard = ({ cert }) => {
+  const formattedVerifyUrl = formatUrl(cert.verificationUrl);
+  const rawFileUrl =
+    cert.certificateFileUrl ||
+    cert.imageUrl ||
+    cert.fileUrl ||
+    cert.certificate ||
+    cert.url ||
+    '';
+  
+  const [resolvedFileUrl, setResolvedFileUrl] = useState('');
+  const { isPdf } = detectFileType(resolveFileUrl(rawFileUrl));
+  const issuerName = cert.issuingOrganization || cert.issuer;
+
+  useEffect(() => {
+    let objectUrl = null;
+    const resolved = resolveFileUrl(rawFileUrl);
+    
+    // For legacy certificates stored as Base64 PDFs, convert to a Blob URL
+    // Modern browsers block direct navigation/rendering of data:application/pdf URIs
+    if (resolved && resolved.startsWith('data:application/pdf;base64,')) {
+      try {
+        const base64Data = resolved.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        objectUrl = URL.createObjectURL(blob);
+        setResolvedFileUrl(objectUrl);
+      } catch (err) {
+        console.error("Failed to decode base64 PDF", err);
+        setResolvedFileUrl(resolved);
+      }
+    } else {
+      setResolvedFileUrl(resolved);
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [rawFileUrl]);
+
+  return (
+    <div className="cert-card">
+      <div className="cert-preview-box">
+        {resolvedFileUrl ? (
+          isPdf ? (
+            <PdfPreview key={resolvedFileUrl} fileUrl={resolvedFileUrl} title={cert.title} />
+          ) : (
+            <CertImagePreview key={resolvedFileUrl} fileUrl={resolvedFileUrl} title={cert.title} />
+          )
+        ) : (
+          <CertPreviewFallback label="Certificate Not Available" />
+        )}
+      </div>
+
+      <div className="cert-content">
+        <div className="cert-header">
+          <h3 className="cert-title">{cert.title}</h3>
+        </div>
+        
+        {issuerName && <h4 className="cert-issuer">{issuerName}</h4>}
+        
+        {(cert.issueDate || cert.date) && (
+          <div className="cert-date">
+            <span className="material-symbols-outlined icon-meta">event</span>
+            Issued: {cert.issueDate || cert.date}
+          </div>
+        )}
+        
+        <hr className="cert-divider" />
+        
+        <div className="cert-actions">
+          {formattedVerifyUrl && (
+            <a
+              href={formattedVerifyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-cert-action btn-verify"
+            >
+              Verify Credential ↗
+            </a>
+          )}
+          {resolvedFileUrl && (
+            <a
+              href={resolvedFileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-cert-action btn-view"
+            >
+              View Certificate
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Main Certifications Component ─────────────────────────────────────── */
 const Certifications = ({ certifications = [] }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const touchStartX = useRef(null);
-  const touchEndX = useRef(null);
-  const certCardRef = useRef(null);
-
+  const viewportRef = useRef(null);
+  
   // Filter active/visible certs & sort strictly by displayOrder ascending
   const validCerts = React.useMemo(() => {
     if (!Array.isArray(certifications)) return [];
@@ -154,70 +255,22 @@ const Certifications = ({ certifications = [] }) => {
     });
   }, [certifications]);
 
-  const maxIndex = Math.max(0, validCerts.length - 1);
-
-  // Reset index if validCerts changes and currentIndex is out of bounds
-  useEffect(() => {
-    if (currentIndex > maxIndex) {
-      setCurrentIndex(Math.max(0, maxIndex));
-    }
-  }, [validCerts.length, maxIndex, currentIndex]);
-
   // If no certification records exist, hide section entirely
   if (validCerts.length === 0) return null;
 
-  const handlePrev = () => setCurrentIndex((prev) => Math.max(0, prev - 1));
-  const handleNext = () => setCurrentIndex((prev) => Math.min(maxIndex, prev + 1));
-
-  const handleTouchEnd = useCallback(() => {
-    if (!touchStartX.current || !touchEndX.current) return;
-    const distance = touchStartX.current - touchEndX.current;
-    if (distance > 50 && currentIndex < maxIndex) handleNext();
-    else if (distance < -50 && currentIndex > 0) handlePrev();
-    touchStartX.current = null;
-    touchEndX.current = null;
-  }, [currentIndex, maxIndex]);
-
-  // Attach touch listeners passively to avoid scroll-blocking violation
-  useEffect(() => {
-    const card = certCardRef.current;
-    if (!card) return;
-
-    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-    const onTouchMove = (e) => { touchEndX.current = e.touches[0].clientX; };
-    const onTouchEnd = () => handleTouchEnd();
-
-    card.addEventListener('touchstart', onTouchStart, { passive: true });
-    card.addEventListener('touchmove', onTouchMove, { passive: true });
-    card.addEventListener('touchend', onTouchEnd, { passive: true });
-
-    return () => {
-      card.removeEventListener('touchstart', onTouchStart);
-      card.removeEventListener('touchmove', onTouchMove);
-      card.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [handleTouchEnd]);
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowLeft' && currentIndex > 0) handlePrev();
-    else if (e.key === 'ArrowRight' && currentIndex < maxIndex) handleNext();
+  const scrollByAmount = (direction) => {
+    if (viewportRef.current) {
+      const itemWidth = viewportRef.current.querySelector('.cert-slide').offsetWidth;
+      const gap = 16; // 1rem gap
+      viewportRef.current.scrollBy({
+        left: direction * (itemWidth + gap),
+        behavior: 'smooth'
+      });
+    }
   };
 
-  const activeCert = validCerts[currentIndex] || validCerts[0];
-  const formattedVerifyUrl = formatUrl(activeCert.verificationUrl);
-  const rawFileUrl =
-    activeCert.certificateFileUrl ||
-    activeCert.imageUrl ||
-    activeCert.fileUrl ||
-    activeCert.certificate ||
-    activeCert.url ||
-    '';
-  const resolvedFileUrl = resolveFileUrl(rawFileUrl);
-  const { isPdf } = detectFileType(resolvedFileUrl);
-  const issuerName = activeCert.issuingOrganization || activeCert.issuer;
-
-  const formattedCurrentPos = String(currentIndex + 1).padStart(2, '0');
-  const formattedTotalCount = String(validCerts.length).padStart(2, '0');
+  const handlePrev = () => scrollByAmount(-1);
+  const handleNext = () => scrollByAmount(1);
 
   return (
     <section id="certifications" className="certifications-section">
@@ -225,140 +278,62 @@ const Certifications = ({ certifications = [] }) => {
         <SectionHeader title="Certifications" />
 
         <div className="cert-carousel-container">
-          {/* Main Carousel Card & Navigation Arrows */}
           <div className="cert-carousel-wrapper">
-            {/* Desktop Left Arrow */}
             {validCerts.length > 1 && (
               <button
                 type="button"
                 className="cert-nav-arrow arrow-left"
                 onClick={handlePrev}
-                disabled={currentIndex === 0}
-                aria-label="Previous certificate"
+                aria-label="Previous certification"
               >
                 ‹
               </button>
             )}
 
-            {/* Active Certificate Card — touch listeners attached passively */}
-            <div
-              ref={certCardRef}
-              className="cert-active-card"
-              onKeyDown={handleKeyDown}
-              tabIndex={0}
+            <div 
+              className={`cert-carousel-viewport ${validCerts.length < 3 ? 'center-certs' : ''}`} 
+              ref={viewportRef}
             >
-              {/* Certificate Preview Area */}
-              <div className="cert-full-preview-box">
-                {resolvedFileUrl ? (
-                  isPdf ? (
-                    <PdfPreview
-                      key={resolvedFileUrl}
-                      fileUrl={resolvedFileUrl}
-                      title={activeCert.title}
-                    />
-                  ) : (
-                    <CertImagePreview
-                      key={resolvedFileUrl}
-                      fileUrl={resolvedFileUrl}
-                      title={activeCert.title}
-                    />
-                  )
-                ) : (
-                  /* No file URL at all */
-                  <CertPreviewFallback label="Certificate Not Available" />
-                )}
-              </div>
-
-              {/* Compact Metadata Info Below Certificate */}
-              <div className="cert-metadata-info">
-                {activeCert.title && (
-                  <h3 className="cert-title-primary">{activeCert.title}</h3>
-                )}
-                {issuerName && (
-                  <h4 className="cert-issuer-name">{issuerName}</h4>
-                )}
-
-                <div className="cert-details-meta">
-                  {(activeCert.issueDate || activeCert.date) && (
-                    <span className="cert-meta-item">
-                      <span className="material-symbols-outlined icon-meta">event</span>
-                      Issued: {activeCert.issueDate || activeCert.date}
-                    </span>
-                  )}
-                  {activeCert.credentialId && (
-                    <span className="cert-meta-item">
-                      <span className="material-symbols-outlined icon-meta">badge</span>
-                      ID: {activeCert.credentialId}
-                    </span>
-                  )}
-                  {formattedVerifyUrl && (
-                    <a
-                      href={formattedVerifyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="cert-verify-link"
-                    >
-                      Verify Credential ↗
-                    </a>
-                  )}
+              {validCerts.map((cert) => (
+                <div 
+                  className="cert-slide" 
+                  key={cert._id || cert.title}
+                >
+                  <CertCard cert={cert} />
                 </div>
-              </div>
+              ))}
             </div>
 
-            {/* Desktop Right Arrow */}
             {validCerts.length > 1 && (
               <button
                 type="button"
                 className="cert-nav-arrow arrow-right"
                 onClick={handleNext}
-                disabled={currentIndex >= maxIndex}
-                aria-label="Next certificate"
+                aria-label="Next certification"
               >
                 ›
               </button>
             )}
           </div>
 
-          {/* Certificate Position Counter (e.g. 02 / 05) */}
-          <div className="cert-position-counter-row">
-            <span className="cert-position-counter" aria-live="polite">
-              {formattedCurrentPos} / {formattedTotalCount}
-            </span>
-          </div>
-
-          {/* Carousel Controls & Pagination Indicators */}
           {validCerts.length > 1 && (
             <div className="cert-carousel-controls">
               <button
                 type="button"
                 className="cert-control-btn-mobile"
                 onClick={handlePrev}
-                disabled={currentIndex === 0}
-                aria-label="Previous certificate"
+                aria-label="Previous certification"
               >
-                ←
+                &#8592;
               </button>
-
-              <div className="cert-dots-indicator-row">
-                {validCerts.map((_, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={`cert-indicator-dot ${idx === currentIndex ? 'active' : ''}`}
-                    onClick={() => setCurrentIndex(idx)}
-                    aria-label={`Go to certificate ${idx + 1}`}
-                  />
-                ))}
-              </div>
 
               <button
                 type="button"
                 className="cert-control-btn-mobile"
                 onClick={handleNext}
-                disabled={currentIndex >= maxIndex}
-                aria-label="Next certificate"
+                aria-label="Next certification"
               >
-                →
+                &#8594;
               </button>
             </div>
           )}
