@@ -103,6 +103,10 @@
   .cert-slide {
     flex: 0 0 100%;
   }
+  
+  .cert-carousel-viewport.center-certs {
+    justify-content: flex-start;
+  }
 }
 
 /* Card Styling */
