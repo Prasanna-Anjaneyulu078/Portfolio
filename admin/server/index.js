@@ -31,8 +31,30 @@ const {
   checkCertificateUniqueness,
   checkResumeUniqueness
 } = require('./utils/uniqueness.js');
+const { connectRedis, getCache, setCache, deleteCache, deleteCacheByPattern, closeRedis } = require('./utils/redis.js');
 
 dotenv.config();
+
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const uploadBase64ToCloudinary = async (base64String, folder = 'portfolio') => {
+  if (!base64String || !base64String.startsWith('data:image/')) return base64String;
+  try {
+    const uploadResponse = await cloudinary.uploader.upload(base64String, {
+      folder: folder
+    });
+    return uploadResponse.secure_url;
+  } catch (error) {
+    console.error("Cloudinary Upload Error:", error);
+    throw new Error("Failed to upload image to Cloudinary");
+  }
+};
+
 const app = express();
 
 const multer = require('multer');
@@ -93,6 +115,7 @@ const connectDB = async () => {
         dbConnected = true;
         console.log("MongoDB Connected Successfully");
         await initFeaturedProjects();
+        await connectRedis();
         await Certification.syncIndexes().catch(e => console.log("Cert syncIndexes notice:", e.message));
     } catch (error) {
         console.error("MongoDB Connection Error:", error.message);
@@ -245,8 +268,13 @@ app.get('/api/auth/setup', async (req, res) => {
 // --- 1. PERSONAL DETAILS ROUTES ---
 app.get('/api/user', async (req, res) => {
   try {
+    const cached = await getCache('portfolio:profile');
+    if (cached) return res.json(cached);
+
     const user = await personalDetailsModel.findOne(); 
-    res.json(user || {}); 
+    const result = user || {};
+    await setCache('portfolio:profile', result, 1800); // 30 mins
+    res.json(result); 
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -254,11 +282,16 @@ app.get('/api/user', async (req, res) => {
 
 app.post('/api/user/update', requireAuth, async (req, res) => {
   try {
+    if (req.body.avatarUrl) {
+      req.body.avatarUrl = await uploadBase64ToCloudinary(req.body.avatarUrl, 'portfolio/avatars');
+    }
+
     const updatedUser = await personalDetailsModel.findOneAndUpdate(
       {}, 
       req.body, 
       { upsert: true, new: true }
     );
+    await deleteCache('portfolio:profile');
     res.status(200).json(updatedUser);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -268,9 +301,13 @@ app.post('/api/user/update', requireAuth, async (req, res) => {
 // --- 2. EDUCATION ROUTES ---
 app.get('/api/education', async (req, res) => {
   try {
+    const cached = await getCache('portfolio:education');
+    if (cached) return res.json(cached);
+
     let data = await educationModel.findOne();
-    if (!data) return res.json({ academic: [] });
-    res.json(data);
+    const result = data || { academic: [] };
+    await setCache('portfolio:education', result, 1800); // 30 mins
+    res.json(result);
   } catch (err) {
     res.status(500).json({ message: "Server Error", error: err.message });
   }
@@ -283,6 +320,7 @@ app.post('/api/update/education', requireAuth, async (req, res) => {
       { academic: req.body.academic }, 
       { new: true, upsert: true, runValidators: true }
     );
+    await deleteCache('portfolio:education');
     res.status(200).json(updatedProfile);
   } catch (err) {
     res.status(400).json({ message: "Update failed", error: err.message });
@@ -296,6 +334,10 @@ app.get('/api/projects', async (req, res) => {
   try {
     const { category, featured } = req.query;
 
+    const cacheKey = `portfolio:projects:cat_${category || 'all'}:feat_${featured || 'false'}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return res.status(200).json(cached);
+
     let query = {};
     if (category && category !== 'All' && category !== 'All Types') {
       query.category = category;
@@ -303,12 +345,16 @@ app.get('/api/projects', async (req, res) => {
 
     const projects = await projectModel.find(query).sort({ displayPriority: 1, createdAt: -1 });
 
+    let result;
     if (featured === 'true') {
       const featuredProjects = projects.filter(p => p.displayPriority >= 1 && p.displayPriority <= 3);
-      return res.status(200).json(featuredProjects.length > 0 ? featuredProjects : projects.slice(0, 3));
+      result = featuredProjects.length > 0 ? featuredProjects : projects.slice(0, 3);
+    } else {
+      result = projects;
     }
 
-    res.status(200).json(projects);
+    await setCache(cacheKey, result, 600); // 10 mins
+    res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ message: "Error fetching projects", error: err.message });
   }
@@ -316,8 +362,13 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects/save', requireAuth, async (req, res) => {
   try {
+    const targetId = (req.body._id && mongoose.Types.ObjectId.isValid(req.body._id)) ? req.body._id : null;
+    
+    if (req.body.imageUrl) {
+      req.body.imageUrl = await uploadBase64ToCloudinary(req.body.imageUrl, 'portfolio/projects');
+    }
+    
     const { _id, title, description, imageUrl, category, codeUrl, demoUrl, techStack, displayPriority, isVisible } = req.body;
-    const targetId = (_id && mongoose.Types.ObjectId.isValid(_id)) ? _id : null;
 
     // Field Validation
     const cleanTitle = typeof title === 'string' ? title.trim() : '';
@@ -412,6 +463,7 @@ app.post('/api/projects/save', requireAuth, async (req, res) => {
     }
 
     const updatedResult = await projectModel.findById(result._id);
+    await deleteCacheByPattern('portfolio:projects*');
     res.status(200).json(updatedResult);
   } catch (err) {
     if (err.code === 11000) {
@@ -434,6 +486,7 @@ app.delete('/api/projects/:id', requireAuth, async (req, res) => {
         await projectModel.findByIdAndUpdate(remaining[i]._id, { displayPriority: i + 1 });
       }
     }
+    await deleteCacheByPattern('portfolio:projects*');
     res.json({ message: "Project deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -466,6 +519,7 @@ app.post('/api/projects/reorder', requireAuth, async (req, res) => {
     }
 
     const updatedProjects = await projectModel.find().sort({ displayPriority: 1, createdAt: 1 });
+    await deleteCacheByPattern('portfolio:projects*');
     res.status(200).json({ success: true, projects: updatedProjects });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Unable to update project order', error: err.message });
@@ -477,6 +531,7 @@ app.post('/api/skill-groups', requireAuth, async (req, res) => {
   try {
     const newGroup = new SkillGroup(req.body);
     const saved = await newGroup.save();
+    await deleteCache('portfolio:skills');
     res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ error: "Creation failed", details: err.message });
@@ -485,7 +540,11 @@ app.post('/api/skill-groups', requireAuth, async (req, res) => {
 
 app.get('/api/skill-groups', async (req, res) => {
   try {
+    const cached = await getCache('portfolio:skills');
+    if (cached) return res.json(cached);
+
     const groups = await SkillGroup.find();
+    await setCache('portfolio:skills', groups, 1800);
     res.json(groups);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -501,6 +560,7 @@ app.put('/api/skill-groups/:id', requireAuth, async (req, res) => {
 
     const updated = await SkillGroup.findOneAndUpdate(filter, req.body, { new: true });
     if (!updated) return res.status(404).json({ error: 'Group not found' });
+    await deleteCache('portfolio:skills');
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -512,6 +572,7 @@ app.delete('/api/skill-groups/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const filter = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { title: id };
     await SkillGroup.findOneAndDelete(filter);
+    await deleteCache('portfolio:skills');
     res.status(200).json({ message: "Skill group deleted" });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -521,7 +582,11 @@ app.delete('/api/skill-groups/:id', requireAuth, async (req, res) => {
 // --- 5. CODING PROFILES ---
 app.get('/api/profiles', async (req, res) => {
   try {
+    const cached = await getCache('portfolio:coding_profiles');
+    if (cached) return res.json(cached);
+
     const profiles = await CodingProfile.find();
+    await setCache('portfolio:coding_profiles', profiles, 1800);
     res.json(profiles);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -533,6 +598,7 @@ app.post('/api/profiles/sync', requireAuth, async (req, res) => {
     await CodingProfile.deleteMany({});
     const cleanedData = req.body.map(({ _id, ...rest }) => rest);
     const saved = await CodingProfile.insertMany(cleanedData);
+    await deleteCache('portfolio:coding_profiles');
     res.status(200).json(saved);
   } catch (err) {
     res.status(400).json({ error: "Sync failed", details: err.message });
@@ -544,7 +610,11 @@ app.post('/api/profiles/sync', requireAuth, async (req, res) => {
 // Get all resumes for list
 app.get('/api/resumes', async (req, res) => {
     try {
+        const cached = await getCache('portfolio:resumes');
+        if (cached) return res.json(cached);
+
         const resumes = await Resume.find().sort({ uploadedAt: -1 });
+        await setCache('portfolio:resumes', resumes, 600);
         res.json(resumes);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -575,6 +645,7 @@ app.post('/api/resumes', requireAuth, async (req, res) => {
             isActive: Boolean(isActive)
         });
         const saved = await newResume.save();
+        await deleteCache('portfolio:resumes');
         res.status(201).json(saved);
     } catch (err) {
         if (err.code === 11000) {
@@ -597,6 +668,7 @@ app.patch('/api/resumes/:id/active', requireAuth, async (req, res) => {
             { new: true }
         );
         if (!updated) return res.status(404).json({ message: "Resume ID not found" });
+        await deleteCache('portfolio:resumes');
         res.json(updated);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -607,6 +679,7 @@ app.patch('/api/resumes/:id/active', requireAuth, async (req, res) => {
 app.delete('/api/resumes/:id', requireAuth, async (req, res) => {
     try {
         await Resume.findByIdAndDelete(req.params.id);
+        await deleteCache('portfolio:resumes');
         res.json({ message: "Deleted successfully" });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -661,6 +734,7 @@ const handleCertSaveRequest = async (req, res) => {
       await result.save();
     }
 
+    await deleteCache('portfolio:certifications');
     return res.status(200).json(result);
   } catch (err) {
     console.error("Certification Save Error:", err);
@@ -694,6 +768,7 @@ const handleCertSaveRequest = async (req, res) => {
           retryResult = new Certification(payload);
           await retryResult.save();
         }
+        await deleteCache('portfolio:certifications');
         return res.status(200).json(retryResult);
       } catch (retryErr) {
         console.error("Retry after index drop failed:", retryErr.message);
@@ -710,7 +785,11 @@ const handleCertSaveRequest = async (req, res) => {
 
 app.get('/api/certifications', async (req, res) => {
   try {
+    const cached = await getCache('portfolio:certifications');
+    if (cached) return res.json(cached);
+
     const certs = await Certification.find().sort({ displayOrder: 1, order: 1, createdAt: -1, _id: 1 });
+    await setCache('portfolio:certifications', certs, 600);
     res.json(certs);
   } catch (err) {
     res.status(500).json({ message: "Error fetching certifications", error: err.message });
@@ -725,6 +804,7 @@ app.put('/api/certifications/:id', requireAuth, handleCertSaveRequest);
 app.delete('/api/certifications/:id', requireAuth, async (req, res) => {
   try {
     await Certification.findByIdAndDelete(req.params.id);
+    await deleteCache('portfolio:certifications');
     res.json({ message: "Certification deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -739,6 +819,7 @@ app.patch('/api/certifications/:id/status', requireAuth, async (req, res) => {
     cert.isVisible = newStatus;
     cert.isActive = newStatus;
     await cert.save();
+    await deleteCache('portfolio:certifications');
     res.json(cert);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -778,11 +859,15 @@ const validateExperienceData = (data) => {
 // GET /api/experiences (Public)
 app.get('/api/experiences', async (req, res) => {
   try {
+    const cached = await getCache('portfolio:experience');
+    if (cached) return res.json(cached);
+
     const experiences = await Experience.find().sort({
       currentlyWorking: -1,
       startDate: -1,
       createdAt: -1
     });
+    await setCache('portfolio:experience', experiences, 600);
     res.json(experiences);
   } catch (err) {
     res.status(500).json({ message: "Error fetching experiences", error: err.message });
@@ -839,6 +924,7 @@ const handleSaveExperience = async (req, res) => {
       result = new Experience(expData);
       await result.save();
     }
+    await deleteCache('portfolio:experience');
     res.status(200).json(result);
   } catch (err) {
     console.error("Experience Save Error:", err);
@@ -860,6 +946,7 @@ app.delete('/api/experiences/:id', requireAuth, async (req, res) => {
     }
     const deleted = await Experience.findByIdAndDelete(id);
     if (!deleted) return res.status(404).json({ message: "Experience record not found" });
+    await deleteCache('portfolio:experience');
     res.json({ message: "Experience deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -942,9 +1029,21 @@ app.get('/api/resume/download', async (req, res) => {
 // Start server when run directly (Render, Railway, Heroku, local dev)
 if (require.main === module) {
     const http = require('http');
-    http.createServer(app).listen(PORT, () =>
+    const server = http.createServer(app).listen(PORT, () =>
         console.log(`Server running on port ${PORT}`)
     );
+
+    const shutdown = async () => {
+        console.log('Shutting down server...');
+        await closeRedis();
+        mongoose.connection.close(false, () => {
+            console.log('MongoDB connection closed.');
+            process.exit(0);
+        });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 }
 
 // For Vercel serverless: export the app
