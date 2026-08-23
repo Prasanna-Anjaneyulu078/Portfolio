@@ -204,16 +204,6 @@ const CertCard = ({ cert }) => {
               Verify Credential ↗
             </a>
           )}
-          {resolvedFileUrl && (
-            <a
-              href={resolvedFileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-cert-action btn-view"
-            >
-              View Certificate
-            </a>
-          )}
         </div>
       </div>
     </div>
