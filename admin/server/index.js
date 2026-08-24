@@ -89,6 +89,48 @@ const compactFeaturedOrders = async () => {
   }
 };
 
+let certificationOrderReady = false;
+
+const normalizeCertificationOrder = async () => {
+  certificationOrderReady = false;
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+  } catch (err) {
+    console.error("Auto-normalization error: MongoDB transactions not supported. Normalization skipped.");
+    certificationOrderReady = true;
+    return;
+  }
+  const opts = { session };
+  try {
+    const certs = await Certification.find().sort({ displayOrder: 1, createdAt: 1, _id: 1 }).session(session);
+    let expectedOrder = 1;
+    let madeChanges = false;
+    for (const cert of certs) {
+      if (cert.displayOrder !== expectedOrder || cert.order !== expectedOrder) {
+        cert.displayOrder = expectedOrder;
+        cert.order = expectedOrder;
+        await cert.save(opts);
+        madeChanges = true;
+      }
+      expectedOrder++;
+    }
+    await session.commitTransaction();
+    session.endSession();
+    
+    if (madeChanges) {
+      try { await deleteCache('portfolio:certifications'); } catch(e) { console.error("Cache clear error:", e.message); }
+      console.log("Normalized certification orders.");
+    }
+    certificationOrderReady = true;
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Auto-normalization of certifications error:", err.message);
+  }
+};
+
 const initFeaturedProjects = async () => {
   try {
     const count = await projectModel.countDocuments({ isFeatured: true });
@@ -115,6 +157,7 @@ const connectDB = async () => {
         dbConnected = true;
         console.log("MongoDB Connected Successfully");
         await initFeaturedProjects();
+        normalizeCertificationOrder().catch(console.error);
         await connectRedis();
         await Certification.syncIndexes().catch(e => console.log("Cert syncIndexes notice:", e.message));
     } catch (error) {
@@ -688,10 +731,21 @@ app.delete('/api/resumes/:id', requireAuth, async (req, res) => {
 
 // --- 7. CERTIFICATION ROUTES ---
 const handleCertSaveRequest = async (req, res) => {
+  let session;
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+  } catch (err) {
+    return res.status(503).json({ success: false, message: "MongoDB transactional support is required but unavailable." });
+  }
+  const opts = { session };
+
   try {
     const body = req.body || {};
     const titleClean = (body.title || '').trim();
     if (!titleClean) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: "Certification title is required",
@@ -706,15 +760,35 @@ const handleCertSaveRequest = async (req, res) => {
     const targetId = (rawId && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
     const finalVis = body.isVisible !== undefined ? Boolean(body.isVisible) : (body.isActive !== undefined ? Boolean(body.isActive) : true);
     
-    let totalCerts = await Certification.countDocuments();
+    let totalCerts = await Certification.countDocuments().session(session);
     let maxOrder = targetId ? totalCerts : totalCerts + 1;
-    let requestedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
     
-    if (requestedOrder > maxOrder) {
-      requestedOrder = maxOrder;
-    } else if (requestedOrder < 1) {
+    let requestedOrder;
+    if (body.displayOrder !== undefined && body.displayOrder !== null && body.displayOrder !== "") {
+      requestedOrder = parseInt(body.displayOrder, 10);
+    } else if (body.order !== undefined && body.order !== null && body.order !== "") {
+      requestedOrder = parseInt(body.order, 10);
+    } else {
       requestedOrder = maxOrder;
     }
+
+    if (isNaN(requestedOrder)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ success: false, message: "Display order must be a valid number." });
+    }
+    
+    if (requestedOrder > maxOrder) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ success: false, message: `Display order cannot exceed ${maxOrder}.` });
+    }
+    if (requestedOrder < 1) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ success: false, message: "Display order must be at least 1." });
+    }
+    
     const parsedOrder = requestedOrder;
 
     const payload = {
@@ -734,84 +808,52 @@ const handleCertSaveRequest = async (req, res) => {
 
     let result;
     if (targetId) {
-      const existingCert = await Certification.findById(targetId);
-      if (existingCert && (existingCert.displayOrder !== parsedOrder && existingCert.order !== parsedOrder)) {
-        await Certification.updateMany(
-          { 
-            $or: [{ displayOrder: { $gte: parsedOrder } }, { order: { $gte: parsedOrder } }],
-            _id: { $ne: targetId }
-          },
-          { $inc: { displayOrder: 1, order: 1 } }
-        );
+      const existingCert = await Certification.findById(targetId).session(session);
+      if (!existingCert) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(404).json({ success: false, message: "Certification not found" });
       }
-      result = await Certification.findByIdAndUpdate(targetId, payload, { new: true });
-      if (!result) {
-        await Certification.updateMany(
-          { $or: [{ displayOrder: { $gte: parsedOrder } }, { order: { $gte: parsedOrder } }] },
-          { $inc: { displayOrder: 1, order: 1 } }
-        );
-        result = new Certification(payload);
-        await result.save();
+      const currentOrder = existingCert.displayOrder;
+      
+      if (currentOrder !== parsedOrder) {
+        // Temp safe order to avoid unique constraints
+        await Certification.findByIdAndUpdate(targetId, { displayOrder: -1, order: -1 }, opts);
+
+        if (parsedOrder < currentOrder) {
+          await Certification.updateMany(
+            { displayOrder: { $gte: parsedOrder, $lt: currentOrder }, _id: { $ne: targetId } },
+            { $inc: { displayOrder: 1, order: 1 } },
+            opts
+          );
+        } else {
+          await Certification.updateMany(
+            { displayOrder: { $gt: currentOrder, $lte: parsedOrder }, _id: { $ne: targetId } },
+            { $inc: { displayOrder: -1, order: -1 } },
+            opts
+          );
+        }
       }
+      result = await Certification.findByIdAndUpdate(targetId, payload, { new: true, ...opts });
     } else {
       await Certification.updateMany(
-        { $or: [{ displayOrder: { $gte: parsedOrder } }, { order: { $gte: parsedOrder } }] },
-        { $inc: { displayOrder: 1, order: 1 } }
+        { displayOrder: { $gte: parsedOrder } },
+        { $inc: { displayOrder: 1, order: 1 } },
+        opts
       );
-      result = new Certification(payload);
-      await result.save();
+      const newCert = new Certification(payload);
+      result = await newCert.save(opts);
     }
 
-    await deleteCache('portfolio:certifications');
+    await session.commitTransaction();
+    session.endSession();
+    
+    try { await deleteCache('portfolio:certifications'); } catch (ce) { console.error("Cache invalidation failed:", ce.message); }
     return res.status(200).json(result);
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("Certification Save Error:", err);
-    if (err.code === 11000) {
-      try {
-        await Certification.collection.dropIndexes().catch(() => {});
-        await Certification.syncIndexes().catch(() => {});
-        const body = req.body || {};
-        const rawId = body._id || req.params.id;
-        const targetId = (rawId && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
-        let totalCerts = await Certification.countDocuments();
-        let maxOrder = targetId ? totalCerts : totalCerts + 1;
-        let requestedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
-        
-        if (requestedOrder > maxOrder) {
-          requestedOrder = maxOrder;
-        } else if (requestedOrder < 1) {
-          requestedOrder = maxOrder;
-        }
-        const parsedOrder = requestedOrder;
-        const payload = {
-          title: (body.title || 'Certification').trim(),
-          issuingOrganization: (body.issuingOrganization || body.issuer || '').trim(),
-          issuer: (body.issuingOrganization || body.issuer || '').trim(),
-          issueDate: (body.issueDate || '').trim(),
-          credentialId: (body.credentialId || '').trim(),
-          verificationUrl: (body.verificationUrl || '').trim(),
-          certificateFileUrl: body.certificateFileUrl || body.imageUrl || '',
-          imageUrl: body.certificateFileUrl || body.imageUrl || '',
-          displayOrder: parsedOrder,
-          order: parsedOrder,
-          isVisible: body.isVisible !== undefined ? Boolean(body.isVisible) : true,
-          isActive: body.isVisible !== undefined ? Boolean(body.isVisible) : true
-        };
-        let retryResult;
-        if (targetId) {
-          retryResult = await Certification.findByIdAndUpdate(targetId, payload, { new: true });
-        }
-        if (!retryResult) {
-          retryResult = new Certification(payload);
-          await retryResult.save();
-        }
-        await deleteCache('portfolio:certifications');
-        return res.status(200).json(retryResult);
-      } catch (retryErr) {
-        console.error("Retry after index drop failed:", retryErr.message);
-      }
-    }
-
     return res.status(400).json({
       success: false,
       message: err.message || "Failed to save certification",
@@ -821,6 +863,9 @@ const handleCertSaveRequest = async (req, res) => {
 };
 
 app.get('/api/certifications', async (req, res) => {
+  if (!certificationOrderReady) {
+    return res.status(503).json({ message: "Certification ordering is currently being verified. Please try again in a few moments." });
+  }
   try {
     const cached = await getCache('portfolio:certifications');
     if (cached) return res.json(cached);
@@ -839,11 +884,37 @@ app.put('/api/certifications/save', requireAuth, handleCertSaveRequest);
 app.put('/api/certifications/:id', requireAuth, handleCertSaveRequest);
 
 app.delete('/api/certifications/:id', requireAuth, async (req, res) => {
+  let session;
   try {
-    await Certification.findByIdAndDelete(req.params.id);
-    await deleteCache('portfolio:certifications');
+    session = await mongoose.startSession();
+    session.startTransaction();
+  } catch (err) {
+    return res.status(503).json({ message: "MongoDB transactional support is required but unavailable." });
+  }
+  const opts = { session };
+
+  try {
+    const cert = await Certification.findById(req.params.id).session(session);
+    if (!cert) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Certification not found" });
+    }
+    const deletedOrder = cert.displayOrder;
+    await Certification.findByIdAndDelete(req.params.id, opts);
+    await Certification.updateMany(
+      { displayOrder: { $gt: deletedOrder } },
+      { $inc: { displayOrder: -1, order: -1 } },
+      opts
+    );
+    await session.commitTransaction();
+    session.endSession();
+    
+    try { await deleteCache('portfolio:certifications'); } catch (ce) { console.error("Cache invalidation failed:", ce.message); }
     res.json({ message: "Certification deleted successfully" });
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: err.message });
   }
 });
