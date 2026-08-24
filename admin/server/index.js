@@ -724,12 +724,30 @@ const handleCertSaveRequest = async (req, res) => {
 
     let result;
     if (targetId) {
+      const existingCert = await Certification.findById(targetId);
+      if (existingCert && (existingCert.displayOrder !== parsedOrder && existingCert.order !== parsedOrder)) {
+        await Certification.updateMany(
+          { 
+            $or: [{ displayOrder: { $gte: parsedOrder } }, { order: { $gte: parsedOrder } }],
+            _id: { $ne: targetId }
+          },
+          { $inc: { displayOrder: 1, order: 1 } }
+        );
+      }
       result = await Certification.findByIdAndUpdate(targetId, payload, { new: true });
       if (!result) {
+        await Certification.updateMany(
+          { $or: [{ displayOrder: { $gte: parsedOrder } }, { order: { $gte: parsedOrder } }] },
+          { $inc: { displayOrder: 1, order: 1 } }
+        );
         result = new Certification(payload);
         await result.save();
       }
     } else {
+      await Certification.updateMany(
+        { $or: [{ displayOrder: { $gte: parsedOrder } }, { order: { $gte: parsedOrder } }] },
+        { $inc: { displayOrder: 1, order: 1 } }
+      );
       result = new Certification(payload);
       await result.save();
     }
