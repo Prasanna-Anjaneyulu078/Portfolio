@@ -705,7 +705,17 @@ const handleCertSaveRequest = async (req, res) => {
     const rawId = body._id || req.params.id;
     const targetId = (rawId && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
     const finalVis = body.isVisible !== undefined ? Boolean(body.isVisible) : (body.isActive !== undefined ? Boolean(body.isActive) : true);
-    const parsedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
+    
+    let totalCerts = await Certification.countDocuments();
+    let maxOrder = targetId ? totalCerts : totalCerts + 1;
+    let requestedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
+    
+    if (requestedOrder > maxOrder) {
+      requestedOrder = maxOrder;
+    } else if (requestedOrder < 1) {
+      requestedOrder = maxOrder;
+    }
+    const parsedOrder = requestedOrder;
 
     const payload = {
       title: titleClean,
@@ -763,7 +773,16 @@ const handleCertSaveRequest = async (req, res) => {
         const body = req.body || {};
         const rawId = body._id || req.params.id;
         const targetId = (rawId && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
-        const parsedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
+        let totalCerts = await Certification.countDocuments();
+        let maxOrder = targetId ? totalCerts : totalCerts + 1;
+        let requestedOrder = parseInt(body.displayOrder ?? body.order ?? 0, 10) || 0;
+        
+        if (requestedOrder > maxOrder) {
+          requestedOrder = maxOrder;
+        } else if (requestedOrder < 1) {
+          requestedOrder = maxOrder;
+        }
+        const parsedOrder = requestedOrder;
         const payload = {
           title: (body.title || 'Certification').trim(),
           issuingOrganization: (body.issuingOrganization || body.issuer || '').trim(),
